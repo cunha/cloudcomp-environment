@@ -1,3 +1,5 @@
 environment-setup/extract-pubkeys/tstudent-key/id_ed25519_tstudent filter=git-crypt diff=git-crypt
 environment-setup/backup/argocd/*.yaml filter=git-crypt diff=git-crypt
+environment-setup/group_vars/* filter=git-crypt diff=git-crypt
+environment-setup/ansible/group_vars/* filter=git-crypt diff=git-crypt
 
