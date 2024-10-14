@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${STUDENT}
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ${STUDENT}
+  namespace: ${STUDENT}
+
+---
+
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/service-account-token
+metadata:
+  name: ${STUDENT}
+  namespace: ${STUDENT}
+  annotations:
+    kubernetes.io/service-account.name: "${STUDENT}"
+
+---
+
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ${STUDENT}
+  namespace: ${STUDENT}
+rules:
+- apiGroups: ["", "extensions", "apps"]
+  resources: ["*"]
+  verbs: ["*"]
+- apiGroups: ["batch"]
+  resources:
+  - jobs
+  - cronjobs
+  verbs: ["*"]
+
+---
+
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: ${STUDENT}
+  namespace: ${STUDENT}
+subjects:
+- kind: ServiceAccount
+  name: ${STUDENT}
+  namespace: ${STUDENT}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ${STUDENT}

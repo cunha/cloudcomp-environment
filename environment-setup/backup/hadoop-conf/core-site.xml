@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<configuration>
+	<property>
+		<name>fs.default.name</name>
+		<value>hdfs://vcm-23691:9000</value>
+	</property>
+</configuration>

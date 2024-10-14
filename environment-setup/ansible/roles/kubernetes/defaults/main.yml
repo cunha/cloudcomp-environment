@@ -1,0 +1,8 @@
+apt_k8s_packages:
+  - kubeadm
+  - kubelet
+  - kubectl
+  - kubernetes-cni
+
+pv_basename: project2-pv2
+# pv_basename: project2-pv2

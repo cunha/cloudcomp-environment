@@ -1,0 +1,45 @@
+---
+HADOOP_VERSION: "3.3.6"
+java_home: "/usr/lib/jvm/java-11-openjdk-amd64"
+hadoop_home: "/home/hadoop/hadoop"
+hadoop_master: "localhost"
+core_props: {}
+workers:
+  - localhost
+
+hdfs_props:
+  {
+    "dfs.namenode.name.dir": "/home/hadoop/hdfs/namenode",
+    "dfs.datanode.data.dir": "/home/hadoop/hdfs/datanode",
+  }
+
+yarn_props:
+  {
+    "yarn.nodemanager.aux-services": "mapreduce_shuffle",
+    "yarn.nodemanager.aux-services.mapreduce.shuffle.class": "org.apache.hadoop.mapred.ShuffleHandler",
+    "yarn.resourcemanager.hostname": "{{ hadoop_master }}",
+    "yarn.nodemanager.remote-app-log-dir": "hdfs://{{ hadoop_master }}:9000/user/yarn/logs",
+    "yarn.nodemanager.log-dirs": "file:///tmp/userlogs",
+    "yarn.log-aggregation-enable": "true",
+    "yarn.nodemanager.resource.memory-mb": "16384",
+    "yarn.nodemanager.resource.cpu-vcores": "4",
+    "yarn.scheduler.minimum-allocation-vcores": "1",
+    "yarn.scheduler.maximum-allocation-vcores": "4",
+    "yarn.scheduler.minimum-allocation-mb": "512",
+    "yarn.scheduler.maximum-allocation-mb": "8192",
+    "yarn.nodemanager.pmem-check-enabled": "false",
+    "yarn.nodemanager.vmem-check-enabled": "false",
+    "yarn.scheduler.capacity.root.default.maximum-application-lifetime": "1800",
+    "yarn.scheduler.capacity.root.maximum-application-lifetime": "1800",
+    "yarn.nodemanager.delete.debug-delay-sec": "1800",
+    "yarn.nodemanager.log.retain-seconds": "1800",
+    "yarn.scheduler.capacity.maximum-am-resource-percent": "0.8",
+  }
+
+mapred_props:
+  {
+    "mapreduce.framework.name": "yarn",
+    "yarn.app.mapreduce.am.env": "HADOOP_MAPRED_HOME=/home/hadoop/hadoop",
+    "mapreduce.map.env": "HADOOP_MAPRED_HOME=/home/hadoop/hadoop",
+    "mapreduce.reduce.env": "HADOOP_MAPRED_HOME=/home/hadoop/hadoop",
+  }

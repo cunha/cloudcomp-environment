@@ -1,0 +1,16 @@
+---
+- hosts: cloud
+  vars:
+    ansible_ssh_pipelining: true
+    student_groups: ""
+  gather_facts: true
+  vars_files:
+    - group_vars/admins.yml
+    - group_vars/students.yml
+  become: true
+  roles:
+  - common
+  # - student-accounts
+  # - docker
+  # - kubernetes
+  # - argocd

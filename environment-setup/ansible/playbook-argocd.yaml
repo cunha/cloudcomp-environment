@@ -1,0 +1,20 @@
+---
+- hosts: head
+  become: yes
+  become_user: root
+  tasks:
+  - name: Installing ArgoCD CLI
+    shell: curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+
+  - name: Changing ArgoCD CLI permission
+    command: chmod +x /usr/local/bin/argocd
+
+  - name: Creating ArgoCD Namespace
+    command: kubectl create namespace argocd
+
+  - name: Installing ArgoCD
+    command: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+  - name: Exposing ArgoCD Port
+    shell: |
+        kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "NodePort","ports": [ {"port": 80, "protocol": "TCP", "targetPort": 8080, "nodePort": 31080}, {"port": 443, "protocol": "TCP", "targetPort": 8080, "nodePort": 31443}]}}'

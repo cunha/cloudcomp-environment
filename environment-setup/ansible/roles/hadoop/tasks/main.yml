@@ -1,0 +1,129 @@
+---
+- name: Create user hadoop
+  become: true
+  user:
+    name: hadoop
+    password: "!"
+    shell: /bin/bash
+    groups: sudo
+    createhome: yes
+    append: yes
+    system: no
+    state: present
+
+# ssh-keygen -b 2048 -N '' -t rsa -f /home/hadoop/.ssh/id_rsa -q
+# cp .ssh/id_rsa.pub .ssh/authorized_keys
+# chown -R hadoop.hadoop /home/hadoop
+
+- name: Download Hadoop
+  become: true
+  become_user: hadoop
+  get_url:
+    url: https://dlcdn.apache.org/hadoop/common/hadoop-{{HADOOP_VERSION}}/hadoop-{{HADOOP_VERSION}}.tar.gz
+    dest: /home/hadoop/
+    owner: hadoop
+  register: download_hadoop
+
+- name: Unzip Hadoop package
+  become: true
+  become_user: hadoop
+  unarchive:
+    copy: no
+    src: /home/hadoop/hadoop-{{HADOOP_VERSION}}.tar.gz
+    dest: /home/hadoop/
+  when: download_hadoop.changed
+
+- name: Creating a symbolic link to Hadoop directory
+  become: true
+  become_user: hadoop
+  file:
+    src: /home/hadoop/hadoop-{{HADOOP_VERSION}}
+    dest: /home/hadoop/hadoop
+    state: link
+    owner: hadoop
+    mode: 0755
+
+- name: Template Hadoop, Compss and Spark envs
+  become: true
+  become_user: root
+  template:
+    src: "{{ item }}.j2"
+    dest: "/etc/profile.d/{{ item }}"
+    owner: root
+    mode: 0755
+  with_items:
+    - hadoop.sh
+
+- name: Template Hadoop config
+  become: true
+  template:
+    src: "{{ item }}.j2"
+    dest: "/home/hadoop/hadoop/etc/hadoop/{{ item }}"
+    owner: hadoop
+  with_items:
+    - hdfs-site.xml
+    - core-site.xml
+    - yarn-site.xml
+    - mapred-site.xml
+    - workers
+
+- name: Set JAVA_HOME in Hadoop env
+  become: true
+  become_user: hadoop
+  lineinfile:
+    dest: "{{ hadoop_home }}/etc/hadoop/hadoop-env.sh"
+    regexp: '^(.*)export JAVA_HOME=(.*)$'
+    line: 'export JAVA_HOME={{ java_home }}'
+    backrefs: true
+
+- name: Delete HDFS directories
+  become: true
+  become_user: hadoop
+  file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - /home/hadoop/hdfs
+
+- name: Create HDFS directories
+  become: true
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: hadoop
+    mode: 0770
+  with_items:
+    - /home/hadoop/hdfs
+    - /home/hadoop/hdfs/namenode
+    - /home/hadoop/hdfs/datanode
+    - /home/hadoop/hadoop/yarn-logs
+
+- name: Stop HDFS using systemd
+  become: true
+  ansible.builtin.systemd:
+    name: hdfs.service
+    state: stopped
+    enabled: true
+  failed_when: false
+
+- name: Format HDFS namenode
+  become: true
+  become_user: hadoop
+  raw: /home/hadoop/hadoop/bin/hdfs namenode -format
+
+- name: Create HDFS systemd service
+  become: true
+  become_user: root
+  template:
+    src: "{{ item }}.j2"
+    dest: /etc/systemd/system/{{ item }}
+    owner: root
+  with_items:
+    - hdfs.service
+
+- name: Start HDFS using systemd
+  become: true
+  ansible.builtin.systemd:
+    name: hdfs.service
+    state: started
+    enabled: true

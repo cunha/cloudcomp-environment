@@ -1,0 +1,83 @@
+---
+- hosts: head
+  tasks:
+
+  - name: download hadoop
+    get_url:
+      url: http://ftp.unicamp.br/pub/apache/hadoop/core/hadoop-{{HADOOP_VERSION}}/hadoop-{{HADOOP_VERSION}}.tar.gz
+      dest: /home/hadoop/
+
+- hosts: workers
+  tasks:
+  - name: copying hadoop
+    copy:
+      src: /home/hadoop/hadoop-{{HADOOP_VERSION}}.tar.gz
+      dest: /home/hadoop/hadoop-{{HADOOP_VERSION}}.tar.gz
+      remote_src: no
+
+- hosts: all
+  tasks:
+
+    - name: "unzip hadoop package"
+      unarchive:
+        copy: no
+        src: /home/hadoop/hadoop-{{HADOOP_VERSION}}.tar.gz
+        dest: /home/hadoop/
+
+    - name: "Creating a symbolic link [hadoop]"
+      file:
+        src: /home/hadoop/hadoop-{{HADOOP_VERSION}}
+        dest: "/home/hadoop/hadoop"
+        state: link
+        owner: hadoop
+        mode: 0755
+
+    - name: "Template hadoop, compss and spark envs"
+      template:
+         src: templates/{{ item }}.j2
+         dest: /etc/profile.d/{{ item }}
+         owner: root
+         mode: 0755
+      with_items:
+      - hadoop.sh
+      become: yes
+      become_user: root
+
+    - name: "HDFS dirs: delete"
+      file:
+         path: "{{ item }}"
+         state: absent
+      with_items:
+      - /home/hadoop/hdfs
+
+    - name: "HDFS dirs: create"
+      file:
+         path: "{{ item }}"
+         state: directory
+         owner: hadoop
+         mode: 0770
+      with_items:
+      - /home/hadoop/hdfs
+      - /home/hadoop/hdfs/namenode
+      - /home/hadoop/hdfs/datanode
+      - /home/hadoop/hadoop/yarn-logs
+
+    - name: "Template hadoop config"
+      template:
+         src: templates/{{ item }}.j2
+         dest: /home/hadoop/hadoop/etc/hadoop/{{ item }}
+         owner: hadoop
+      with_items:
+      - hdfs-site.xml
+      - core-site.xml
+      - yarn-site.xml
+      - mapred-site.xml
+      - workers
+
+    - name: "Java home into hadoop env"
+      lineinfile:
+         dest: "{{ hadoop_home }}/etc/hadoop/hadoop-env.sh"
+         regexp: '^(.*)export JAVA_HOME=(.*)$'
+         line: 'export JAVA_HOME={{ java_home }}'
+         backrefs: yes
+

@@ -1,0 +1,10 @@
+---
+- name: Generate User Accounts
+  hosts: vms
+  gather_facts: true
+  vars:
+    ansible_ssh_pipelining: true
+  vars_files:
+    - group_vars/students.yml
+  roles:
+    - student-accounts

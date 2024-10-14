@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<configuration>
+	<property>
+		<name>yarn.nodemanager.aux-services</name>
+		<value>mapreduce_shuffle</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.aux-services.mapreduce.shuffle.class</name>
+		<value>org.apache.hadoop.mapred.ShuffleHandler</value>
+	</property>
+	<property>
+		<name>yarn.resourcemanager.hostname</name>
+		<value>vcm-23691</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.remote-app-log-dir</name>
+		<value>hdfs://vcm-23691:9000/user/yarn/logs</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.log-dirs</name>
+		<value>file:///tmp/userlogs</value>
+	</property>
+	<property>
+		<name>yarn.log-aggregation-enable</name>
+		<value>true</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.resource.memory-mb</name>
+		<value>1024</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.resource.cpu-vcores</name>
+		<value>1</value>
+	</property>
+	<property>
+		<name>yarn.scheduler.minimum-allocation-vcores</name>
+		<value>1</value>
+	</property>
+	<property>
+		<name>yarn.scheduler.maximum-allocation-vcores</name>
+		<value>3</value>
+	</property>
+	<property>
+		<name>yarn.scheduler.minimum-allocation-mb</name>
+		<value>128</value>
+	</property>
+	<property>
+		<name>yarn.scheduler.maximum-allocation-mb</name>
+		<value>9216</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.pmem-check-enabled</name>
+		<value>false</value>
+	</property>
+	<property>
+		<name>yarn.nodemanager.vmem-check-enabled</name>
+		<value>false</value>
+	</property>
+
+
+	<property>
+		<name>yarn.scheduler.capacity.root.default.maximum-application-lifetime</name>
+		<value>1800</value>
+	</property>
+
+	<property>
+		<name>yarn.scheduler.capacity.root.maximum-application-lifetime</name>
+		<value>1800</value>
+	</property>
+
+
+</configuration>

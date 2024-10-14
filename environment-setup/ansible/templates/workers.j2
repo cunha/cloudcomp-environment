@@ -1,0 +1,5 @@
+{% for host in groups['all'] %}
+{% if host != hadoop_master %}
+{{ host }}
+{% endif %}
+{% endfor %}

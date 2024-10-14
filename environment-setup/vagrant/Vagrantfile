@@ -1,0 +1,28 @@
+repo_dir = "/home/cunha/git/cloudcomp-assignments/"
+ansible_dir = repo_dir + "environment-setup/ansible/"
+
+Vagrant.configure("2") do |config|
+    config.ssh.forward_agent = true
+    config.vm.define "cloud" do |cloud|
+        cloud.vm.provider :libvirt do |libvirt_cfg|
+            libvirt_cfg.memory = 24*1024
+            libvirt_cfg.cpus = 16
+            # libvirt_cfg.storage_pool_name = "vagrant_cunha"
+            # doesn't work:
+            # libvirt_cfg.disk_bus = "virtio"
+            # libvirt_cfg.disk_size = "64G"
+        end
+        cloud.vm.box = "generic/ubuntu2004"
+        cloud.vm.hostname = "cloud"
+        # vagrant plugin install vagrant-disksize, doesn't work:
+        # config.disksize.size = "64GB"
+        cloud.vm.box_check_update = true
+        cloud.vm.network "forwarded_port", guest: 22, host: 4444, protocol: "tcp"
+
+        cloud.vm.provision :ansible do |ansible|
+            # ansible.verbose = ""
+            # ansible.config_file = ansible_config_file
+            ansible.playbook = "#{ansible_dir}/playbook-provision.yml"
+        end
+    end
+end

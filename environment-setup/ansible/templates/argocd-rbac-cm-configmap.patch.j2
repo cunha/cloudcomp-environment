@@ -1,0 +1,11 @@
+data:
+  policy.default: role:''
+  policy.csv: |
+{% for user in users %}
+    p, role:{{user}}, applications, *, {{user}}-project/*, allow
+    p, role:{{user}}, projects, get, {{user}}-project, allow
+    p, role:{{user}}, repositories, *, *, allow
+    p, role:{{user}}, clusters, get, *, allow
+    g, {{user}}, role:{{user}}
+
+{% endfor -%}

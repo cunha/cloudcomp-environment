@@ -1,0 +1,12 @@
+Vagrant.configure("2") do |config|
+    config.vm.define "lab0" do |lab0|
+        lab0.vm.box = "debian/bullseye64"
+        lab0.vm.hostname = "lab0"
+        lab0.vm.synced_folder '.', '/vagrant', disabled: true
+        lab0.vm.box_check_update = false
+        lab0.vm.provider :libvirt do |libvirt_lab0|
+            libvirt_lab0.memory = 4096
+            libvirt_lab0.cpus = "2"
+        end
+    end
+end

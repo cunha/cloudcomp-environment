@@ -1,0 +1,11 @@
+---
+- hosts: cloud
+  gather_facts: true
+  vars:
+    ansible_ssh_pipelining: true
+  vars_files:
+    - group_vars/admins.yml
+  roles:
+  - common
+  - hadoop
+  - spark

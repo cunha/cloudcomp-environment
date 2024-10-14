@@ -1,0 +1,4 @@
+/pubkeys
+/hadoop_id_rsa
+/join-command
+/group_vars/users.yml

@@ -1,0 +1,30 @@
+---
+- name: Create student accounts
+  become: true
+  ansible.builtin.user:
+    name: "{{ item.username }}"
+    shell: /bin/bash
+    createhome: true
+    system: false
+    state: present
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: "Set authorized keys for students"
+  become: true
+  become_user: "{{ item.username }}"
+  authorized_key:
+    user: "{{ item.username }}"
+    key: "{{ item.pubkey }}"
+    state: present
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: Setting permissions in student home directories
+  become: true
+  ansible.builtin.raw: chown -h {{ item.username }}:{{ item.username }} /home/{{ item.username }}
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"

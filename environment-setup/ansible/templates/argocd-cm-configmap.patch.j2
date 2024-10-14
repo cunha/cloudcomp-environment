@@ -1,0 +1,4 @@
+data:
+{% for user in users %}
+  accounts.{{user}}: apiKey,login
+{% endfor -%}

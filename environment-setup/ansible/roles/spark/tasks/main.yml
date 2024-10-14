@@ -1,0 +1,51 @@
+---
+- name: Download Spark
+  become: true
+  become_user: hadoop
+  get_url:
+    url: http://ftp.unicamp.br/pub/apache/spark/spark-{{SPARK_VERSION}}/spark-{{SPARK_VERSION}}-bin-hadoop{{SPARK_HADOOP_BASE}}.tgz
+    dest: /home/hadoop/
+  register: download_spark
+
+- name: Unzip Spark package
+  become: true
+  become_user: hadoop
+  unarchive:
+    copy: no
+    src: /home/hadoop/spark-{{SPARK_VERSION}}-bin-hadoop{{SPARK_HADOOP_BASE}}.tgz
+    dest: /home/hadoop/
+    owner: hadoop
+    mode: 0755
+  when: download_spark.changed
+
+- name: Creating a symbolic link for Spark's directory
+  become: true
+  become_user: hadoop
+  file:
+    src: /home/hadoop/spark-{{SPARK_VERSION}}-bin-hadoop{{SPARK_HADOOP_BASE}}
+    dest: /home/hadoop/spark
+    state: link
+    owner: hadoop
+    mode: 0755
+
+- name: Generate Spark env file from template
+  become: true
+  become_user: root
+  template:
+    src: "{{ item }}.j2"
+    dest: "/etc/profile.d/{{ item }}"
+    owner: root
+    mode: 0755
+  with_items:
+    - spark.sh
+
+- name: Generate Spark config from template
+  become: true
+  template:
+    src: "{{ item }}.j2"
+    dest: "/home/hadoop/spark/conf/{{ item }}"
+    owner: hadoop
+    mode: 0755
+  with_items:
+    - spark-defaults.conf
+    - spark-env.sh

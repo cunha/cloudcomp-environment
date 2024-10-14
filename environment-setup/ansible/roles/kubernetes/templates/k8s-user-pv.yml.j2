@@ -1,0 +1,18 @@
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  namespace: {{item.username}}
+  name: {{pv_basename}}-{{item.username}}
+  labels:
+    type: local
+    namespace: {{item.username}}
+spec:
+  capacity:
+    storage: 1Gi
+  storageClassName: standard
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Recycle
+  hostPath:
+    path: /home/{{item.username}}/{{pv_basename}}

@@ -1,0 +1,58 @@
+
+---
+- hosts: head
+  tasks:
+  - name: download spark
+    get_url: 
+      url: http://ftp.unicamp.br/pub/apache/spark/spark-{{SPARK_VERSION}}/spark-{{SPARK_VERSION}}-bin-hadoop{{SPARK_HADOOP_BASE}}.tgz 
+      dest: /home/hadoop/
+
+
+- hosts: workers
+  tasks:
+  - name: copying hadoop
+    copy:
+      src: /home/hadoop/spark-{{SPARK_VERSION}}-bin-hadoop{{SPARK_HADOOP_BASE}}.tgz
+      dest: /home/hadoop/spark-{{SPARK_VERSION}}-bin-hadoop{{SPARK_HADOOP_BASE}}.tgz
+      remote_src: no
+
+
+- hosts: all
+  tasks:
+    - name:  "unzip spark package"
+      unarchive: 
+        copy: no 
+        src: /home/hadoop/spark-{{SPARK_VERSION}}-bin-hadoop{{SPARK_HADOOP_BASE}}.tgz 
+        dest: /home/hadoop/
+        owner: hadoop
+        mode: 0755
+      
+    - name: "Creating a symbolic link [spark]"
+      file:
+        src: /home/hadoop/spark-{{SPARK_VERSION}}-bin-hadoop{{SPARK_HADOOP_BASE}}
+        dest: "/home/hadoop/spark"
+        state: link
+        owner: hadoop
+        mode: 0755
+
+
+    - name: "Template: spark envs"
+      template:
+         src: templates/{{ item }}.j2
+         dest: /etc/profile.d/{{ item }}
+         owner: root
+         mode: 0755
+      with_items:
+      - spark.sh
+      become: yes
+      become_user: root
+        
+    - name: "Template: spark config"
+      template:
+         src: templates/{{ item }}.j2
+         dest: /home/hadoop/spark/conf/{{ item }}
+         owner: hadoop
+         mode: 0755 
+      with_items:
+      - spark-defaults.conf
+      - spark-env.sh

@@ -1,0 +1,79 @@
+---
+- name: Installing ArgoCD CLI
+  become: true
+  shell: curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+
+- name: Changing ArgoCD CLI permission
+  become: true
+  command: chmod +x /usr/local/bin/argocd
+
+- name: Creating ArgoCD Namespace
+  become: true
+  command: kubectl create namespace argocd
+
+- name: Installing ArgoCD
+  become: true
+  command: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+- name: Pause 360 seconds for ArgoCD deployment
+  pause:
+    seconds: 360
+
+- name: Exposing ArgoCD Port
+  become: true
+  shell: |
+      kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "NodePort","ports": [ {"port": 80, "protocol": "TCP", "targetPort": 8080, "nodePort": 31080}, {"port": 443, "protocol": "TCP", "targetPort": 8080, "nodePort": 31443}]}}'
+
+- name: Notify user to login as root on ArgoCD
+  pause:
+    prompt: "Log into the cloud VM and update the ArgoCD admin password to {{argocd_admin_password}}.  Follow the instructions in the argocd/README.md file."
+
+- name: Create backup directory
+  become: true
+  file:
+    path: "{{argocd_backup_dir}}"
+    state: directory
+
+- name: Backup current argocd-cm ConfigMap
+  become: true
+  shell: "kubectl get configmap argocd-cm -n argocd -o yaml > {{argocd_backup_dir}}/argocd-cm.configmap-{{ansible_date_time.iso8601}}"
+
+- name: Create config directory
+  become: true
+  file:
+    path: "{{argocd_config_dir}}"
+    state: directory
+
+- name: Create argocd-cm ConfigMap patch file to create ArgoCD accounts
+  become: true
+  template:
+    src: templates/argocd-cm-configmap.patch.j2
+    dest: "{{argocd_config_dir}}/argocd-cm-configmap.patch"
+
+- name: Update argocd-cm ConfigMap to create accounts for each user
+  become: true
+  command: "kubectl -n argocd patch configmap argocd-cm --patch-file {{argocd_config_dir}}/argocd-cm-configmap.patch"
+
+- name: Set password for ArgoCD users
+  become: true
+  command: "argocd account update-password --account {{item.username}} --new-password {{item.username}}123456 --current-password {{argocd_admin_password}}"
+  with_items: "{{students}}"
+
+- name: Create ArgoCD projects for each user
+  become: true
+  command: "argocd proj create {{item.username}}-project -d https://kubernetes.default.svc,{{item.username}} -s '*' --upsert"
+  with_items: "{{students}}"
+
+- name: Backup current argocd-rbac-cm ConfigMap
+  become: true
+  shell: "kubectl get configmap argocd-rbac-cm -n argocd -o yaml > {{argocd_backup_dir}}/argocd-rbac-cm.configmap-{{ansible_date_time.iso8601}}"
+
+- name: Create argocd-rbac-cm ConfigMap patch file to setup permissions
+  become: true
+  template:
+    src: templates/argocd-rbac-cm-configmap.patch.j2
+    dest: "{{argocd_config_dir}}/argocd-rbac-cm-configmap.patch"
+
+- name: Update argocd-rbac-cm-configmap to set up authentication
+  become: true
+  command: "kubectl -n argocd patch configmap argocd-rbac-cm --patch-file {{argocd_config_dir}}/argocd-rbac-cm-configmap.patch"

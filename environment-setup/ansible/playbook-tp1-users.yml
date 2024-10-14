@@ -1,0 +1,35 @@
+---
+- hosts: cloud
+  gather_facts: true
+  vars:
+    ansible_ssh_pipelining: true
+    student_groups: "hadoop"
+  vars_files:
+    - group_vars/students.yml
+  tasks:
+    - name: Add users to group
+      become: true
+      ansible.builtin.user:
+        name: "{{ item.username }}"
+        groups: "{{ student_groups }}"
+        state: present
+        append: true
+      with_items: "{{ students }}"
+      loop_control:
+        label: "{{ item.username }}"
+    - name: Creating HDDS folder for each user
+      become: true
+      become_user: hadoop
+      raw: /home/hadoop/hadoop/bin/hdfs dfs -mkdir -p /user/{{ item.username }}
+      with_items: "{{ students }}"
+    - name: Changing owner on user folders
+      become: true
+      become_user: hadoop
+      raw: /home/hadoop/hadoop/bin/hdfs dfs -chown {{ item.username }}:{{ item.username }} /user/{{ item.username }}
+      with_items: "{{ students }}"
+    - name: Changing permissions on user folders
+      become: true
+      become_user: hadoop
+      raw: /home/hadoop/hadoop/bin/hdfs dfs -chmod 750 /user/{{ item.username }}
+      with_items: "{{ students }}"
+

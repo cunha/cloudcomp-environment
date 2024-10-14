@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<configuration>
+	<property>
+		<name>dfs.namenode.name.dir</name>
+		<value>/home/hadoop/hdfs/namenode</value>
+	</property>
+	<property>
+		<name>dfs.datanode.data.dir</name>
+		<value>/home/hadoop/hdfs/datanode</value>
+	</property>
+</configuration>

@@ -1,0 +1,73 @@
+
+# ---------------------------------------
+# k3d is a lightweight wrapper to run k3s 
+# (Rancher Lab’s minimal Kubernetes distribution) in docker.
+# k3d makes it very easy to create single- and multi-node k3s
+# clusters in docker, e.g. for local development on Kubernetes.
+# It's a great tool to students learn about Kubernets.
+#
+# The main problem in using k3d at this course is because in order
+# to enable some K8s features in k3d like port expose and volume points
+# we need to enable it in cluster creation. 
+#
+# For instance, to create a cluster in k3d that will, in the future, have an service 
+# that exposes host's 8082 port we need to run : 
+# 
+#   k3d cluster create mycluster -p "8082:30080@agent:0" --agents 2 
+#
+# See official documentation: https://k3d.io/v5.4.6/usage/exposing_services/
+# 
+# Similar to that, to enable volume points:
+# 
+#   k3d cluster create mycluster -v /my/path@agent:0
+#  
+---
+- hosts: head
+  become: yes
+  become_user: root
+  tasks:
+  - name: Add Kubernetes GPG key
+    apt_key: url=https://packages.cloud.google.com/apt/doc/apt-key.gpg
+
+  - name: Add Kubernetes APT repository
+    apt_repository:
+      repo: deb [arch=amd64] https://apt.kubernetes.io/ kubernetes-xenial main
+
+  - name: Install k8s packages
+    apt:
+      name: kubectl
+      state: present
+      cache_valid_time: 600
+
+  - name: Downloading k3d installer
+    get_url: url=https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh dest=/tmp/k3d-installer.sh
+
+  - name: Execute the k3d-installer.sh
+    command: sudo bash /tmp/k3d-installer.sh
+
+  - name: Creating k3d cluster
+    command: k3d cluster create cloudcomputing
+
+  - name: Setup kubeconfig for hadoop user
+    command: "{{ item }}"
+    with_items:
+    - mkdir -p /home/hadoop/.kube
+    - cp -i /root/.kube/config /home/hadoop/.kube/config
+    - chown hadoop:hadoop /home/hadoop/.kube/config
+
+- hosts: head
+  become: yes
+  become_user: hadoop
+  tasks:
+    - name: Copying K8s user generation scripts
+      copy:
+        src: "{{ item }}"
+        dest: "/home/hadoop/{{ item }}"
+        mode: 0755
+      with_items:
+        - setup-k8s-permissions.sh
+        - k8s-users.yml
+
+    - name: Creating K8s user
+      command: /home/hadoop/setup/ansible/setup-k8s-permissions.sh {{ item }}
+      with_items: "{{ users }}"

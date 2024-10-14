@@ -1,0 +1,56 @@
+---
+- hosts: head
+
+  vars_files:
+    - group_vars/all.yml
+    - group_vars/users.yml
+
+  tasks:
+  
+  - name: "Create HDFS systemd service"
+    template:
+       src: templates/{{ item }}.j2
+       dest: /etc/systemd/system/{{ item }}
+       owner: root
+    with_items:
+    - hdfs.service
+    become: yes
+    become_user: root
+
+  - name: Start HDFS using systemd
+    ansible.builtin.systemd:
+       state: started
+       name: hdfs.service
+       enabled: yes
+
+  # - name: Creating staging directory
+  #   become: true
+  #   become_user: hadoop
+  #   raw: /home/hadoop/hadoop/bin/hdfs dfs -mkdir -p /tmp/hadoop-yarn/staging
+
+  # - name: Setting owner of staging directory
+  #   become: true
+  #   become_user: hadoop
+  #   raw: "/home/hadoop/hadoop/bin/hdfs dfs -chmod 1777 {{item}}"
+  #   with_items:
+  #     - /tmp
+  #     - /tmp/hadoop-yarn
+  #     - /tmp/hadoop-yarn/staging
+
+  - name: Creating HDDS folder for each user
+    become: true
+    become_user: hadoop
+    raw: /home/hadoop/hadoop/bin/hdfs dfs -mkdir -p /user/{{ item }}
+    with_items: "{{ users }}"
+
+  - name: Changing owner on user folders
+    become: true
+    become_user: hadoop
+    raw: /home/hadoop/hadoop/bin/hdfs dfs -chown {{ item }}:{{ item }} /user/{{ item }}
+    with_items: "{{ users }}"
+
+  - name: Changing permissions on user folders
+    become: true
+    become_user: hadoop
+    raw: /home/hadoop/hadoop/bin/hdfs dfs -chmod 750 /user/{{ item }}
+    with_items: "{{ users }}"

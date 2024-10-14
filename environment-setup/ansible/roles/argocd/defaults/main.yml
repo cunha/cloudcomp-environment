@@ -1,0 +1,3 @@
+argocd_backup_dir: /root/argocd-backups
+argocd_config_dir: /root/argocd-config
+argocd_admin_password: admin123456123456

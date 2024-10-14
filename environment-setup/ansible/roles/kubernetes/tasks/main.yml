@@ -1,0 +1,131 @@
+---
+- name: Disabling swapoff so k8s works correctly
+  become: true
+  command: swapoff -a
+
+- name: Add Kubernetes GPG key
+  become: true
+  apt_key:
+    url: https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key
+
+- name: Add Kubernetes APT repository
+  become: true
+  apt_repository:
+    repo: deb https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /
+
+- name: Install k8s packages
+  become: true
+  apt:
+    name: "{{ apt_k8s_packages }}"
+    state: present
+    cache_valid_time: 600
+
+- name: Allow bridge traffic through iptables (flannel)
+  become: true
+  sysctl:
+    name: net.bridge.bridge-nf-call-iptables
+    value: 1
+    state: present
+    reload: yes
+
+- name: Initialize the Kubernetes cluster using kubeadm (flannel)
+  become: true
+  command: kubeadm init --pod-network-cidr=10.244.0.0/16
+
+- name: Setup kubeconfig for root
+  become: true
+  command: "{{ item }}"
+  with_items:
+    - mkdir -p /root/.kube
+    - cp /etc/kubernetes/admin.conf /root/.kube/config
+
+- name: Install Flannel pod network
+  become: true
+  command: kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+
+### These are no longer necessary since we now run K8s on a single machine:
+### # - name: Generate join command
+### #   become: true
+### #   command: kubeadm token create --print-join-command
+### #   register: join_command
+###
+### # - name: Join the worker node to cluster
+### #   become: true
+### #   command: "{{ join_command.stdout_lines[0] }}"
+###
+### # - name: Add worker label to node
+### #   become: true
+### #   command: kubectl label node cloud node-role.kubernetes.io/worker=
+
+- name: Handling of DNS packets larger than 1500 bytes
+  become: true
+  shell: >
+    kubectl patch configmap/coredns -n kube-system --type merge -p \
+    '{"data": {"Corefile": ".:53 {\n    log  \n    errors\n    health {\n       lameduck 5s\n    }\n    ready\n    kubernetes cluster.local in-addr.arpa ip6.arpa {\n       pods insecure\n       fallthrough in-addr.arpa ip6.arpa\n       ttl 30\n    }\n    prometheus :9153\n    forward . /etc/resolv.conf {\n       force_tcp\n       max_concurrent 1000\n    }\n    cache 3\n    loop\n    reload\n    loadbalance\n    bufsize 1024\n}\n"}}'
+
+- name: Create k8s-configs directory
+  become: true
+  file:
+    path: /root/k8s-configs/
+    state: directory
+    mode: 0755
+
+- name: Generate file with user k8s configuration
+  become: true
+  template:
+    src: "k8s-user.yml.j2"
+    dest: "/root/k8s-configs/k8s-user-{{item.username}}.yml"
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: Applying k8s user configurations
+  become: true
+  raw: kubectl apply -f /root/k8s-configs/k8s-user-{{item.username}}.yml
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: Copy student kubeconfig generation script
+  become: true
+  copy:
+    src: files/generate-user-k8s-config.sh
+    dest: /root/k8s-configs/
+    mode: 0755
+
+- name: Running kubeconfig generation script for students
+  become: true
+  command: /root/k8s-configs/generate-user-k8s-config.sh {{ item.username }}
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: Creating PersistentVolume folders
+  file:
+    path: /home/{{ item.username }}/{{ pv_basename }}
+    state: directory
+    owner: "{{ item.username }}"
+    group: "{{ item.username }}"
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: Generate file with user PersistentVolume configuration
+  become: true
+  template:
+    src: "k8s-user-pv.yml.j2"
+    dest: "/root/k8s-configs/k8s-user-pv-{{item.username}}.yml"
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: Applying k8s configurations for PersistentVolumes
+  become: true
+  raw: kubectl apply -f /root/k8s-configs/k8s-user-pv-{{item.username}}.yml
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: Removing NoSchedule taint
+  become: true
+  raw: kubectl taint nodes cloud node-role.kubernetes.io/control-plane:NoSchedule-

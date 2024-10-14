@@ -1,0 +1,32 @@
+SPARK_VERSION: "3.2.0"
+SPARK_HADOOP_BASE: "3.2"
+spark_home: "/home/hadoop/spark"
+hadoop_home: "/home/hadoop/hadoop"
+
+spark_props:
+  {
+#    # when Spark will be executed in local mode
+    "spark.master": "local[4]",
+    "spark.driver.memory": "8g",
+    "spark.executor.userClassPathFirst": "true",
+    "spark.driver.userClassPathFirst": "true",
+
+
+#    # when Spark is in a multi-node configuration using YARN
+#    "spark.eventLog.enabled": "false",
+#    "spark.eventLog.dir": "hdfs://{{ hadoop_master }}:9000/spark/logs",
+#    "spark.submit.deployMode": "client",
+#    "spark.history.fs.logDirectory": "hdfs://{{ hadoop_master }}:9000/spark/logs",
+#    "spark.executor.extraJavaOptions": "-XX:+UseG1GC -XX:+ExplicitGCInvokesConcurrent",
+#    "spark.driver.extraJavaOptions": "-XX:+UseG1GC -XX:+ExplicitGCInvokesConcurrent",
+#    "spark.driver.maxResultSize": "2g",
+#    "spark.yarn.jars": "hdfs://{{ hadoop_master }}:9000/user/spark/jars/spark-libs.jar",
+#    "spark.executor.userClassPathFirst": "true",
+#    "spark.driver.userClassPathFirst": "true",
+  }
+
+spark_env:
+  {
+    "HADOOP_CONF_DIR": "{{ hadoop_home }}/etc/hadoop",
+    "JAVA_HOME": "/usr/lib/jvm/java-11-openjdk-amd64",
+  }

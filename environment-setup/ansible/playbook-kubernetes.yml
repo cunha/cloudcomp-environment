@@ -1,0 +1,100 @@
+- hosts: all
+  become: yes
+  become_user: root
+  tasks:
+  - name: Disabling Swap on all nodes
+    command: swapoff -a
+
+  - name: Commenting Swap entries in /etc/fstab
+    replace:
+      dest: /etc/fstab
+      regexp: '(.*swap*)'
+      replace: '#\1'
+
+  - name: Add Kubernetes GPG key
+    apt_key: url=https://packages.cloud.google.com/apt/doc/apt-key.gpg
+
+  - name: Add Kubernetes APT repository
+    apt_repository:
+      repo: deb [arch=amd64] https://apt.kubernetes.io/ kubernetes-xenial main
+
+  - name: Install k8s packages
+    apt:
+      name: "{{apt_k8s_packages}}"
+      state: present
+      cache_valid_time: 600
+
+- hosts: head
+  become: yes
+  become_user: root
+  tasks:
+  - name: Allow bridge traffic through iptables (flannel)
+    command: sysctl net.bridge.bridge-nf-call-iptables=1
+
+  - name: Initialize the Kubernetes cluster using kubeadm (flannel))
+    command: kubeadm init --pod-network-cidr=10.244.0.0/16
+
+  - name: Setup kubeconfig for hadoop user
+    command: "{{ item }}"
+    with_items:
+     - mkdir -p /home/hadoop/.kube
+     - cp -i /etc/kubernetes/admin.conf /home/hadoop/.kube/config
+     - chown hadoop:hadoop /home/hadoop/.kube/config
+
+  - name: Setup kubeconfig for root
+    command: "{{ item }}"
+    with_items:
+      - mkdir -p /root/.kube
+      - cp /home/hadoop/.kube/config /root/.kube/config
+
+  - name: Install Flannel pod network
+    become: false
+    command: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/master/Documentation/kube-flannel.yml
+
+  # We do not use Calico as it seems more complex. Flannel is simpler and
+  # worked for us.
+  # - name: Install Calico pod network
+  #   become: false
+  #   command: kubectl create -f https://docs.projectcalico.org/v3.10/getting-started/kubernetes/installation/hosted/calico.yaml
+
+  - name: Generate join command
+    command: kubeadm token create --print-join-command
+    register: join_command
+
+  - name: Copy join command to local file
+    local_action: copy content="{{ join_command.stdout_lines[0] }}" dest="./join-command"
+
+- hosts: workers
+  tasks:
+  - name: Save the join command to worker
+    copy:
+      content: "{{ join_command.stdout_lines[0] }}"
+      dest: /tmp/join-command.sh
+      mode: 0755
+
+  - name: Join the worker node to cluster
+    command: /tmp/join-command.sh
+
+- hosts: head
+  become: yes
+  become_user: hadoop
+  tasks:
+  - name: Handling of DNS packets larger than 1500 bytes
+    shell: kubectl patch configmap/coredns \
+            -n kube-system \
+            --type merge \
+            -p='{"data": {"Corefile": ".:53 {\n    log  \n    errors\n    health {\n       lameduck 5s\n    }\n    ready\n    kubernetes cluster.local in-addr.arpa ip6.arpa {\n       pods insecure\n       fallthrough in-addr.arpa ip6.arpa\n       ttl 30\n    }\n    prometheus :9153\n    forward . /etc/resolv.conf {\n       force_tcp\n       max_concurrent 1000\n    }\n    cache 3\n    loop\n    reload\n    loadbalance\n    bufsize 1024\n}\n"}}'
+
+  - name: Copying K8s user generation scripts
+    copy:
+      src: "{{ item }}"
+      dest: "/home/hadoop/setup/ansible/{{ item }}"
+      mode: 0755
+    with_items:
+      - setup-k8s-permissions.sh
+      - k8s-users.yml
+
+  - name: Creating K8s user
+    command: /home/hadoop/setup/ansible/setup-k8s-permissions.sh {{ item }}
+    with_items: "{{ users }}"
+

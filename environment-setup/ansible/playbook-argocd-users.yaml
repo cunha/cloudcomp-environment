@@ -1,0 +1,39 @@
+---
+- hosts: head
+  tasks:
+  - name: Create backup directory
+    file:
+      path: "{{argocd_backup_dir}}"
+      state: directory
+
+  - name: Backup current argocd-cm ConfigMap
+    shell: "kubectl get configmap argocd-cm -n argocd -o yaml > {{argocd_backup_dir}}/argocd-cm.configmap-{{ansible_date_time.iso8601}}"
+
+  - name: Create argocd-cm ConfigMap patch file to create ArgoCD accounts
+    template:
+      src: templates/argocd-cm-configmap.patch.j2
+      dest: /home/hadoop/argocd-cm-configmap.patch
+      owner: hadoop
+
+  - name: Update argocd-cm ConfigMap to create accounts for each user
+    command: kubectl -n argocd patch configmap argocd-cm --patch-file /home/hadoop/argocd-cm-configmap.patch
+
+  - name: Set password for ArgoCD users
+    command: "argocd account update-password --account {{item}} --current-password {{argocd_admin_password}} --new-password {{item}}123456"
+    with_items: "{{users}}"
+
+  - name: Create ArgoCD projects for each user
+    command: "argocd proj create {{item}}-project -d https://kubernetes.default.svc,{{item}} -s '*' --upsert"
+    with_items: "{{users}}"
+
+  - name: Backup current argocd-rbac-cm ConfigMap
+    shell: "kubectl get configmap argocd-rbac-cm -n argocd -o yaml > {{argocd_backup_dir}}/argocd-rbac-cm.configmap-{{ansible_date_time.iso8601}}"
+
+  - name: Create argocd-rbac-cm ConfigMap patch file to setup permissions
+    template:
+      src: templates/argocd-rbac-cm-configmap.patch.j2
+      dest: /home/hadoop/argocd-rbac-cm-configmap.patch
+      owner: hadoop
+
+  - name: Update argocd-rbac-cm ConfigMap to set up permissions
+    command: kubectl -n argocd patch configmap argocd-rbac-cm --patch-file /home/hadoop/argocd-rbac-cm-configmap.patch

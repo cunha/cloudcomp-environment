@@ -1,0 +1,8 @@
+create 'sales', 'data'
+put 'sales', '20130101#1', 'cf:sales', '100'
+put 'sales', '20130101#2', 'cf:sales', '110'
+put 'sales', '20130102#1', 'cf:sales', '200'
+put 'sales', '20130102#2', 'cf:sales', '210'
+create 'test2', 'cf'
+scan 'sales'
+scan 'test2'
