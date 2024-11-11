@@ -1,0 +1,4 @@
+data:
+{% for student in students %}
+  accounts.{{student.username}}: apiKey,login
+{% endfor -%}

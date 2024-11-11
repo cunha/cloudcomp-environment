@@ -1,0 +1,6 @@
+apt_docker_packages:
+  - docker-ce=5:27.2.1-1~debian.11~bullseye
+  - docker-ce-cli=5:27.2.1-1~debian.11~bullseye
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin

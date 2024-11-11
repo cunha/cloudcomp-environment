@@ -1,0 +1,15 @@
+data:
+  policy.default: role:''
+  policy.csv: |
+{% for student in students %}
+    p, role:{{student.username}}, applications, *, {{student.username}}-project/*, allow
+    p, role:{{student.username}}, projects, get, {{student.username}}-project, allow
+    p, role:{{student.username}}, certificates, *, *, allow
+    p, role:{{student.username}}, repositories, *, {{student.username}}-project/*, allow
+    p, role:{{student.username}}, clusters, get, *, allow
+    p, role:{{student.username}}, logs, get, {{student.username}}-project/*, allow
+    p, role:{{student.username}}, extensions, invoke, {{student.username}}-project/*, allow
+
+    g, {{student.username}}, role:{{student.username}}
+
+{% endfor -%}

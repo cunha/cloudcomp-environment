@@ -1,0 +1,53 @@
+---
+- name: Add Docker GPG key
+  become: true
+  apt_key: url=https://download.docker.com/linux/debian/gpg
+
+- name: Add Docker APT repository
+  become: true
+  apt_repository:
+    repo: deb [arch=amd64] https://download.docker.com/linux/{{ansible_distribution|lower}} {{ansible_distribution_release}} stable
+
+- name: Install Docker packages
+  become: true
+  apt:
+    name: "{{ apt_docker_packages }}"
+    state: present
+    cache_valid_time: 600
+
+- name: Enable CRI plugin for Kubernetes
+  become: true
+  replace:
+    dest: /etc/containerd/config.toml
+    regexp: "^(disabled_plugins.*)"
+    replace: '#\1'
+
+- name: Enable Docker
+  become: true
+  systemd:
+    unit: "{{ item }}"
+    enabled: yes
+    state: restarted
+  with_items:
+    - docker
+    - containerd
+
+- name: Add admins to Docker group
+  become: true
+  user:
+    name: "{{ item.username }}"
+    append: yes
+    groups: docker
+  with_items: "{{ admins }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: Add students to Docker group
+  become: true
+  user:
+    name: "{{ item.username }}"
+    append: yes
+    groups: docker
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"

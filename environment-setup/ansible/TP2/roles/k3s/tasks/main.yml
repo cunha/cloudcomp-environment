@@ -1,0 +1,83 @@
+- name: Check for existing rancher installation
+  become: True
+  stat:
+    path: "/bin/k3s"
+  register: k3s_install
+  tags:
+    - k3
+
+
+- name: Prepare environment for kubernetes
+  include_tasks: prepare_kubernetes.yml
+  tags:
+    - kubernetes
+    - setup
+
+- name: Download, install and setup rancher environment
+  when: not k3s_install.stat.exists
+  block:
+    - name: Start k3s installation
+      include_tasks: k3s.yml
+  tags:
+    - k3
+    - installation
+    - setup
+
+- name: Check if k3s is already running
+  become: true
+  pids:
+    name: k3s
+  register: k3s_running
+  tags:
+    - k3
+
+- name: Running K3S
+  when: k3s_running.pids|length == 0
+  become: true
+  shell: sudo systemctl start k3s
+
+- name: Create the config directory
+  become: True
+  ansible.builtin.file:
+    path: /{{ k3s_admin_user }}/.kube
+    state: directory
+
+- name: Create the config directory (k3s_user)
+  become: True
+  become_user: "{{ k3s_admin_user }}"
+  ansible.builtin.file:
+    path: "~/.kube"
+    state: directory
+
+- name: Add Configuration to root users
+  become: True
+  become_user: "{{ k3s_admin_user}}"
+  copy:
+    remote_src: yes
+    src: "/etc/rancher/k3s/k3s.yaml"
+    dest: "~/.kube/config"
+    mode: 0600
+    owner: "{{ k3s_admin_user }}"
+    group: k3s_admin
+
+- name: Create the config directories (.kube)
+  become: True
+  ansible.builtin.file:
+    path: "/home/{{item.username}}/.kube"
+    state: directory
+  with_items: "{{ admins }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: Add Configuration to admin users
+  become: True
+  copy:
+    remote_src: yes
+    src: "/etc/rancher/k3s/k3s.yaml"
+    dest: "/home/{{item.username}}/.kube/config"
+    mode: 0600
+    owner: "{{ item.username }}"
+    group: "{{ item.username }}"
+  with_items: "{{ admins }}"
+  loop_control:
+    label: "{{ item.username }}"

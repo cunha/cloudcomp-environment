@@ -1,0 +1,13 @@
+- name: Rancher Installation
+  become: true
+  block:
+    - name: Deploy Rancher Helm
+      when: rancher_pods.stdout == ""
+      shell: 'helm install rancher rancher-stable/rancher --set replicas=1 --set hostname={{ rancher_server_name }}.{{ cluster_domain }} --set bootstrapPassword="{{ random_password }}" --namespace cattle-system --set ingress.extraAnnotations."cert-manager\.io/cluster-issuer"=pv2-selfsigned-issuer'
+
+    - name: Wait until rancher is ready
+      shell: "kubectl get pods --namespace cattle-system --field-selector=status.phase!=Succeeded -o name | xargs -I {} kubectl wait --timeout=900s --namespace cattle-system --for=condition=Ready {}"
+
+    - name: Expose Rancher's Ports
+      shell: |
+        kubectl patch svc rancher -n cattle-system -p '{"spec": {"type": "NodePort","ports": [{"port": 80, "protocol": "TCP", "targetPort": 80, "nodePort": {{ RANCHER_EXPOSED_PORT_HTTP }}}, {"port": 443, "protocol": "TCP", "targetPort": 443, "nodePort": {{ RANCHER_EXPOSED_PORT_HTTPS }} }]}}'

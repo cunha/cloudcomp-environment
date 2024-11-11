@@ -1,0 +1,59 @@
+---
+- name: Create student accounts
+  become: true
+  user:
+    name: "{{ item.username }}"
+    groups: "{{ student_groups }}"
+    shell: /bin/bash
+    createhome: yes
+    system: no
+    state: present
+    append: true
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: "Set authorized keys for students"
+  become: true
+  become_user: "{{ item.username }}"
+  authorized_key:
+    user: "{{ item.username }}"
+    key: "{{ item.pubkey }}"
+    state: present
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: Setting permissions in student home directories
+  become: true
+  raw: chown -h {{ item.username }}:{{ item.username }} /home/{{ item.username }}
+  with_items: "{{ students }}"
+  loop_control:
+    label: "{{ item.username }}"
+
+- name: Create admin users
+  become: true
+  user:
+    name: "{{ item.username }}"
+    password: "{{ item.password }}"
+    shell: /bin/bash
+    groups: sudo
+    createhome: yes
+    append: yes
+    system: no
+    state: present
+  with_items: "{{ admins }}"
+
+- name: Set authorized keys for admins
+  become: true
+  become_user: "{{ item.username }}"
+  authorized_key:
+    user: "{{ item.username }}"
+    key: "{{ item.pubkey }}"
+    state: present
+  with_items: "{{ admins }}"
+
+- name: Setting permissions in admin home directories
+  become: true
+  raw: chown -R {{ item.username }}:{{ item.username }} /home/{{ item.username }}
+  with_items: "{{ admins }}"

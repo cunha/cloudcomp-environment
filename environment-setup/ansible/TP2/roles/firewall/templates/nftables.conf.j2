@@ -1,0 +1,22 @@
+#!/usr/sbin/nft -f
+
+flush ruleset
+
+table firewall {                                                                            
+    chain incoming {
+        type filter hook input priority 0; policy drop;
+        ct state vmap { established : accept, related : accept, invalid : drop }
+
+        iifname lo accept
+        iifname cni0 accept
+
+        tcp dport ssh accept
+
+        ip saddr 192.168.0.0/24 tcp dport 30000-32767 accept
+        ip saddr 192.168.0.0/24 udp dport 30000-32767 accept
+
+        # log prefix "[nftables] Inbound Denied: " counter drop
+        reject 
+    }                                        
+ 
+}

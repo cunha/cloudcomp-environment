@@ -1,0 +1,3 @@
+{% if rancher_vars is defined %}{% for key, value in rancher_vars.items() %}
+export {{key}}={{value}}
+{% endfor %}{% endif %}

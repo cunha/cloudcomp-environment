@@ -1,0 +1,171 @@
+- name: Check if User exist
+  uri:
+    validate_certs: false
+    url: "https://{{ rancher_server_name }}.{{ cluster_domain }}/v3/users?name={{ user.username }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ access_token.token }}"
+  register: user_exist
+
+- name: Assign Current User
+  set_fact:
+    user_id: "{{ user_exist.json.data[0].id }}"
+  when: user_exist.json.data|length > 0
+
+- name: Create Users in Rancher through API
+  when: user_exist.json.data|length == 0
+  uri:
+    validate_certs: false
+    status_code: 201
+    url: "https://{{ rancher_server_name }}.{{ cluster_domain }}/v3/users"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ access_token.token }}"
+    body_format: json
+    body:
+      name: "{{ user.username }}"
+      username: "{{ user.username }}"
+      password: "{{ user.pubkey | md5 }}"
+      enabled: true
+      mustChangePassword: true
+      state: "active"
+      type: "user"
+      annotations:
+        field.cattle.io/creatorId: "user-{{ user.username }}"
+  register: registered_user
+
+- name: Check if User exist
+  when: user_exist.json.data|length == 0
+  uri:
+    validate_certs: false
+    url: "https://{{ rancher_server_name }}.{{ cluster_domain }}/v3/users?name={{ user.username }}"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ access_token.token }}"
+  register: recheck_user
+
+- name: Assign Current User
+  set_fact:
+    user_id: "{{ recheck_user.json.data[0].id }}"
+  when: user_exist.json.data|length == 0
+
+- name: Bind user to their role
+  uri:
+    validate_certs: false
+    status_code: 201
+    url: "https://{{ rancher_server_name }}.{{ cluster_domain }}/v3/globalrolebindings"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ access_token.token }}"
+    body_format: json
+    body:
+      globalRoleId: "{{ kind }}"
+      type: "globalRoleBinding"
+      userId: "{{ user_id }}"
+
+- name: Normal User Processes
+  when: kind != 'admin'
+  block:
+    - name: Check if User Project Exist
+      uri:
+        validate_certs: false
+        url: "https://{{ rancher_server_name }}.{{ cluster_domain }}/v3/projects?name={{ user.username }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ access_token.token }}"
+      register: check_user_project
+
+    - name: Assign Current Project
+      set_fact:
+        project_id: "{{ check_user_project.json.data[0].id }}"
+      when: check_user_project.json.data|length>0
+
+    - name: Create User's Project
+      when: (check_user_project.json.data|length==0)
+      uri:
+        validate_certs: false
+        status_code: 201
+        url: "https://{{ rancher_server_name }}.{{ cluster_domain }}/v3/projects"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ access_token.token }}"
+        body_format: json
+        body:
+          name: "{{ user.username }}"
+          clusterId: "{{ cluster_name }}"
+          creatorId: "{{ cluster_name }}://{{ access_token.userId }}"
+          type: "project"
+      register: project
+
+    - name: Check if User Project Exist
+      when: check_user_project.json.data|length==0
+      uri:
+        validate_certs: false
+        url: "https://{{ rancher_server_name }}.{{ cluster_domain }}/v3/projects?name={{ user.username }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ access_token.token }}"
+      register: recheck_user_project
+
+    - name: Assign Current Project
+      set_fact:
+        project_id: "{{ recheck_user_project.json.data[0].id }}"
+      when: check_user_project.json.data|length==0
+
+    - name: Bind Project to User
+      retries: 5
+      delay: 5
+      uri:
+        validate_certs: false
+        status_code: 201
+        url: "https://{{ rancher_server_name }}.{{ cluster_domain }}/v3/projectroletemplatebindings"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ access_token.token }}"
+        body_format: json
+        body:
+          projectId: "{{ project_id }}"
+          roleTemplateId: "project-owner"
+          type: "projectRoleTemplateBinding"
+          userPrincipalId: "{{ cluster_name }}://{{ user_id }}"
+      register: project_role
+
+    - name: Check if User Namespace Exist
+      uri:
+        validate_certs: false
+        url: "https://{{ rancher_server_name }}.{{ cluster_domain }}/v1/namespace/{{ user.username }}"
+        method: GET
+        headers:
+          Authorization: "Bearer {{ access_token.token }}"
+      register: user_namespace
+
+    - name: Move Users namespace to their project
+      when: user_namespace.status == 200
+      uri:
+        validate_certs: false
+        status_code: 200
+        url: "https://{{ rancher_server_name }}.{{ cluster_domain }}/v1/namespaces/{{ user.username }}"
+        method: PUT
+        headers:
+          Authorization: "Bearer {{ access_token.token }}"
+        body_format: json
+        body:
+          apiVersion: "v1"
+          id: "{{ user.username }}"
+          kind: "Namespace"
+          type: "namespace"
+          spec:
+            finalizers:
+              - "kubernetes"
+          metadata:
+            annotations:
+              cattle.io/status: '{{ user_namespace.json.metadata.annotations["cattle.io/status"] | to_json }}'
+              kubectl.kubernetes.io/last-applied-configuration: '{ user_namespace.json.metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"] | to_json }}'
+              lifecycle.cattle.io/create.namespace-auth: "true"
+              field.cattle.io/projectId: "{{ project_id }}"
+            labels:
+              kubernetes.io/metadata.name: "{{ user.username }}"
+              field.cattle.io/projectId: "{{ project_id | replace(cluster_name+':', '', 1)}}"
+            name: "{{ user.username }}"
+            resourceVersion: "{{ user_namespace.json.metadata.resourceVersion }}"
+            selfLink: "/api/v1/namespaces/{{ user.username }}"

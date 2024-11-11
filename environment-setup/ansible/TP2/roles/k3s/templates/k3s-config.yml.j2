@@ -1,0 +1,8 @@
+write-kubeconfig-mode: "0600"
+tls-san:
+  - "{{ rancher_server_name }}.{{ cluster_domain }}"
+  - "{{ argocd_server_name }}.{{ cluster_domain }}"
+cluster-init: true
+kubelet-arg:
+  - "resolv-conf=/etc/k3s-resolv.conf"
+  - "max-pods=300"
