@@ -84,7 +84,7 @@ students:
   - username: luancosta
     pubkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP8uPfLcQS798E7zQgjX+I6FZxUpnUIiFCrxIBxGwg6p cloud_computing_dcc
   - username: lucassilva
-    pubkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIILsIMS0SlkJQ9pNdKug5+vDllsDPV/LszhGbbXqKKN+ lucasgriosilva@gmail.com
+    pubkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIC/Ow5z+a7rToRM9DakDnMXZtv53UC/F7rpYFTxIU0hI lucasgriosilva@gmail.com
   - username: lucaschaves
     pubkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIG2Frg/RPZMT4a/gW4AUf+ilqLVTr/re7MIaWxb980/C gabrielucas2008@hotmail.com
   - username: lucascarvalho
