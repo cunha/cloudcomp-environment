@@ -1,4 +1,6 @@
+
 data:
+  timeout.reconciliation: 30s
 {% for student in students %}
   accounts.{{student.username}}: apiKey,login
 {% endfor -%}

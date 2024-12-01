@@ -1,8 +1,17 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: {{ user.username }}
+---
 
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: memory-limit-range
+  namespace: matheusalves
+spec:
+  limits:
+  - max:
+      memory: 2500M
+    min:
+      memory: 500M
+    type: Container
 ---
 
 apiVersion: v1
@@ -30,17 +39,29 @@ metadata:
   name: {{ user.username }}
   namespace: {{ user.username }}
 rules:
-- apiGroups: ["", "extensions", "apps"]
-  resources: ["*"]
+- apiGroups: ["","extensions", "apps"]
+  resources: ["deployments", "secrets", "endpoints", "replicasets", "pods", "services", "ingresses", "events", "configmaps"]
   verbs: ["*"]
+
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  resourceNames: ["{{pv_basename}}-{{user.username}}"]
+  verbs: ["get", "list" , " watch"]
+
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch"]
+
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  resourceNames: ["{{ pv_basename }}-{{ user.username }}-claim"]
+  verbs: ["create", "delete", "patch", "get", "list", "watch"]
+
 - apiGroups: ["batch"]
   resources:
   - jobs
   - cronjobs
   verbs: ["*"]
-- apiGroups: [""]
-  resources: ["persistentvolumes"]
-  verbs: ["get", "list", "watch", "patch"]
 
 ---
 

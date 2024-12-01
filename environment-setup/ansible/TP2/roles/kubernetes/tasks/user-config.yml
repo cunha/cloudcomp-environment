@@ -4,10 +4,24 @@
   register: user_namespace
   failed_when: user_namespace.rc != 1 and user_namespace.rc != 0
 
-- name: Setup User Account Info
+- name: Create User Namespace
   become: True
   when: user_namespace.stdout == ""
+  shell: kubectl create ns {{user.username}}
+
+- name: Setup User Account Info
+  become: True
   block:
+    - name: Generate Storage Class Configuration
+      become: true
+      template:
+        src: "k8s-storage-class.yml.j2"
+        dest: "~/k8s-configs/k8s-storage-class-{{user.username}}.yml"
+
+    - name: Create StorageClass
+      become: true
+      shell: kubectl apply -f ~/k8s-configs/k8s-storage-class-{{user.username}}.yml
+
     - name: Generate file with user k8s configuration
       template:
         src: "k8s-user.yml.j2"
