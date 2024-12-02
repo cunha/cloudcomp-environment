@@ -4,7 +4,7 @@ apiVersion: v1
 kind: LimitRange
 metadata:
   name: memory-limit-range
-  namespace: matheusalves
+  namespace: {{ user.username }}
 spec:
   limits:
   - max:
@@ -12,6 +12,22 @@ spec:
     min:
       memory: 500M
     type: Container
+
+---
+
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: storage-consumption-{{ user.username }}
+  namespace: {{ user.username }}
+spec:
+  hard:
+    {% for student in students %}
+    {% if student.username != user.username %}
+    default-storage-class-{{student.username}}.storageclass.storage.k8s.io/persistentvolumeclaims: "0" 
+    {% endif %}
+    {% endfor %}
+
 ---
 
 apiVersion: v1
@@ -40,22 +56,8 @@ metadata:
   namespace: {{ user.username }}
 rules:
 - apiGroups: ["","extensions", "apps"]
-  resources: ["deployments", "secrets", "endpoints", "replicasets", "pods", "services", "ingresses", "events", "configmaps"]
+  resources: ["deployments", "secrets", "endpoints", "replicasets", "pods", "services", "ingresses", "events", "configmaps", "persistentvolumeclaims"]
   verbs: ["*"]
-
-- apiGroups: [""]
-  resources: ["persistentvolumes"]
-  resourceNames: ["{{pv_basename}}-{{user.username}}"]
-  verbs: ["get", "list" , " watch"]
-
-- apiGroups: [""]
-  resources: ["persistentvolumeclaims"]
-  verbs: ["get", "list", "watch"]
-
-- apiGroups: [""]
-  resources: ["persistentvolumeclaims"]
-  resourceNames: ["{{ pv_basename }}-{{ user.username }}-claim"]
-  verbs: ["create", "delete", "patch", "get", "list", "watch"]
 
 - apiGroups: ["batch"]
   resources:
@@ -78,4 +80,38 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: {{ user.username }}
-  
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ user.username }}_cluster_role
+rules:
+
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  resourceNames: ["{{pv_basename}}-{{user.username}}"]
+  verbs: ["list", "watch", "get"]
+
+- apiGroups: ["storage.k8s.io", "core" ]
+  resources: [ "storageclass" ]
+  resourceNames: ["default-storage-class-{{user.username}}"]
+  verbs: ["get", "list", "watch"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ user.username }}_cluster_role_binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ user.username }}_cluster_role
+subjects:
+  - kind: ServiceAccount
+    name: {{ user.username }}
+    namespace: {{ user.username }}
+
+    

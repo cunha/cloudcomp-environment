@@ -7,33 +7,18 @@ metadata:
   finalizers:
     - kubernetes.io/pv-protection
   labels:
-    type: local
+    type: hostPath
     namespace: {{user.username}}
 spec:
   capacity:
     storage: 1Gi
   storageClassName: default-storage-class-{{user.username}}
   accessModes:
-    - ReadWriteMany
+    - ReadWriteOnce
+    - ReadOnlyMany
+    - ReadWriteMany 
   persistentVolumeReclaimPolicy: Retain
   hostPath:
     path: /home/{{user.username}}/{{pv_basename}}
     type: DirectoryOrCreate
   volumeMode: Filesystem
-
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: {{pv_basename}}-{{user.username}}-claim
-  namespace: {{user.username}}
-  labels:
-    type: local
-spec:
-  storageClassName: default-storage-class-{{user.username}}
-  volumeName: {{pv_basename}}-{{user.username}}
-  accessModes:
-    - ReadWriteMany
-  resources:
-    requests:
-      storage: 1Gi
