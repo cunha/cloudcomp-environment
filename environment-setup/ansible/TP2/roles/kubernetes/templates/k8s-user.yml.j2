@@ -7,10 +7,10 @@ metadata:
   namespace: {{ user.username }}
 spec:
   limits:
-  - max:
-      memory: 2500M
-    min:
+  - default:
       memory: 500M
+    max:
+      memory: 2500M
     type: Container
 
 ---
@@ -22,11 +22,14 @@ metadata:
   namespace: {{ user.username }}
 spec:
   hard:
-    {% for student in students %}
-    {% if student.username != user.username %}
-    default-storage-class-{{student.username}}.storageclass.storage.k8s.io/persistentvolumeclaims: "0" 
-    {% endif %}
-    {% endfor %}
+  {%- for student in students +%}
+  {%- if student.username != user.username +%}
+    {{ student.username }}.storageclass.storage.k8s.io/persistentvolumeclaims: "0"
+  {%- endif +%}
+  {%- endfor +%}
+    persistentvolumeclaims: "2"
+    requests.storage: "1Gi"
+    {{ user.username }}.storageclass.storage.k8s.io/persistentvolumeclaims: "2"
 
 ---
 
@@ -95,7 +98,7 @@ rules:
   verbs: ["list", "watch", "get"]
 
 - apiGroups: ["storage.k8s.io", "core" ]
-  resources: [ "storageclass" ]
+  resources: [ "storageclasses" ]
   resourceNames: ["default-storage-class-{{user.username}}"]
   verbs: ["get", "list", "watch"]
 
