@@ -17,7 +17,7 @@ spec:
     - ReadWriteOnce
     - ReadOnlyMany
     - ReadWriteMany 
-  persistentVolumeReclaimPolicy: Retain
+  persistentVolumeReclaimPolicy: Recycle
   hostPath:
     path: /home/{{user.username}}/{{pv_basename}}
     type: DirectoryOrCreate

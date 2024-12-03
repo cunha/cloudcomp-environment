@@ -24,12 +24,13 @@ spec:
   hard:
   {%- for student in students +%}
   {%- if student.username != user.username +%}
-    {{ student.username }}.storageclass.storage.k8s.io/persistentvolumeclaims: "0"
+    default-storage-class-{{student.username}}.storageclass.storage.k8s.io/persistentvolumeclaims: "0"
   {%- endif +%}
   {%- endfor +%}
-    persistentvolumeclaims: "2"
+    persistentvolumeclaims: "3"
+    local-path.storageclass.storage.k8s.io/persistentvolumeclaims: "0"
     requests.storage: "1Gi"
-    {{ user.username }}.storageclass.storage.k8s.io/persistentvolumeclaims: "2"
+    default-storage-class-{{user.username}}.storageclass.storage.k8s.io/persistentvolumeclaims: "3"
 
 ---
 
