@@ -1,0 +1,53 @@
+---
+- name: Create HDFS folder for each user
+  hosts: localhost
+  become: true
+  gather_facts: true
+  vars:
+    JAVA_HOME: "export JAVA_HOME=/root/.sdkman/candidates/java/current"
+  tasks:
+    - name: Get local system users
+      shell: "getent passwd | cut -d: -f1"
+      register: local_users
+      changed_when: false
+
+    - name: Ensure Hadoop binary has correct permissions
+      file:
+        path: /usr/local/bin/hadoop
+        state: file
+        mode: "0775"
+        owner: hadoop
+        group: hadoop
+
+      - name: Creating HDFS folder for each user
+        become: true
+        become_user: hadoop
+        command: "/usr/local/bin/hadoop -mkdir -p /user/{{ item }}"
+        with_items: "{{ local_users.stdout_lines }}"
+        register: mkdir_results
+        failed_when: mkdir_results.rc != 0
+        environment:
+          HADOOP_HOME: "/root/.sdkman/candidates/hadoop/current"
+          JAVA_HOME: "/root/.sdkman/candidates/java/current"
+          SPARK_HOME: "/root/.sdkman/candidates/spark/current"
+          PATH: "$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin"
+
+      - name: Changing owner on user folders
+        become: true
+        become_user: hadoop
+        command: "/usr/local/bin/hadoop -chown {{ item }}:{{ item }} /user/{{ item }}"
+        with_items: "{{ local_users.stdout_lines }}"
+        environment:
+          HADOOP_HOME: "/root/.sdkman/candidates/hadoop/current"
+          JAVA_HOME: "/root/.sdkman/candidates/java/current"
+          SPARK_HOME: "/root/.sdkman/candidates/spark/current"
+
+      - name: Changing permissions on user folders
+        become: true
+        become_user: hadoop
+        command: "/usr/local/bin/hadoop dfs -chmod 775 /user/{{ item }}"
+        with_items: "{{ local_users.stdout_lines }}"
+        environment:
+          HADOOP_HOME: "/root/.sdkman/candidates/hadoop/current"
+          JAVA_HOME: "/root/.sdkman/candidates/java/current"
+          SPARK_HOME: "/root/.sdkman/candidates/spark/current"

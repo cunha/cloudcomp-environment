@@ -1,0 +1,172 @@
+---
+- name: Install Hadoop and Spark with SDKMAN
+  hosts: localhost
+  become: true
+  gather_facts: true
+  vars:
+    JAVA_HOME: "export JAVA_HOME=/root/.sdkman/candidates/java/current"
+  tasks:
+    - name: Install curl if not installed
+      apt:
+        name: curl
+        state: present
+      when: ansible_facts.packages['curl'] is not defined
+
+    - name: Create hadoop user with home directory
+      user:
+        name: hadoop
+        create_home: yes
+        shell: /bin/bash
+
+    - name: Add hadoop user to sudo group
+      user:
+        name: hadoop
+        groups: sudo
+        append: yes
+
+    - name: Configure sudoers for passwordless sudo
+      lineinfile:
+        path: /etc/sudoers
+        regexp: '^%sudo ALL=\(ALL:ALL\) ALL'
+        line: '%sudo ALL=(ALL:ALL) NOPASSWD:ALL'
+        validate: 'visudo -cf %s'
+
+    - name: Generate SSH key pair for hadoop user
+      become: true
+      become_user: hadoop
+      shell: |
+        ssh-keygen -b 2048 -N '' -t rsa -f /home/hadoop/.ssh/id_rsa -q
+        cp /home/hadoop/.ssh/id_rsa.pub /home/hadoop/.ssh/authorized_keys
+      args:
+        creates: /home/hadoop/.ssh/id_rsa
+
+    - name: Ensure correct ownership of hadoop home directory
+      file:
+        path: /home/hadoop
+        state: directory
+        owner: hadoop
+        group: hadoop
+        recurse: yes
+
+    - name: Ensure SDKMAN is installed
+      get_url:
+        url: "https://get.sdkman.io"
+        dest: "/root/install_sdkman.sh"
+        mode: "u+x"
+
+    - name: Run SDKMAN installation script
+      shell: |
+        bash /root/install_sdkman.sh
+      args:
+        creates: "/root/.sdkman/bin/sdkman-init.sh"
+
+    - name: Load SDKMAN into environment
+      shell: |
+        source /root/.sdkman/bin/sdkman-init.sh
+      args:
+        executable: /bin/bash
+
+    - name: Install Java via SDKMAN
+      shell: |
+        source /root/.sdkman/bin/sdkman-init.sh
+        sdk install java
+      args:
+        creates: "/root/.sdkman/candidates/java"
+        executable: /bin/bash
+      register: java_install_output
+      failed_when: java_install_output.rc != 0
+
+    - name: Install Hadoop via SDKMAN
+      shell: |
+        source /root/.sdkman/bin/sdkman-init.sh
+        sdk install hadoop
+      args:
+        creates: "/root/.sdkman/candidates/hadoop"
+        executable: /bin/bash
+      register: hadoop_install_output
+      failed_when: hadoop_install_output.rc != 0
+
+    - name: Install Spark via SDKMAN
+      shell: |
+        source /root/.sdkman/bin/sdkman-init.sh
+        sdk install spark
+      args:
+        creates: "/root/.sdkman/candidates/spark"
+        executable: /bin/bash
+      register: spark_install_output
+      failed_when: spark_install_output.rc != 0
+
+    - name: Display installation output for Java
+      debug:
+        msg: "{{ java_install_output.stdout }}"
+
+    - name: Display installation output for Hadoop
+      debug:
+        msg: "{{ hadoop_install_output.stdout }}"
+
+    - name: Display installation output for Spark
+      debug:
+        msg: "{{ spark_install_output.stdout }}"
+
+    
+    - name: Get local system users
+      shell: "getent passwd | cut -d: -f1"
+      register: local_users
+      changed_when: false
+
+    - name: Create global symlinks for Hadoop and Spark
+      file:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        state: link
+      with_items:
+        - { src: "/root/.sdkman/candidates/hadoop/current/bin/hadoop", dest: "/usr/local/bin/hadoop" }
+        - { src: "/root/.sdkman/candidates/spark/current/bin/spark-submit", dest: "/usr/local/bin/spark-submit" }
+
+    - name: Create Hadoop environment variable file if it does not exist
+      file:
+        path: "/etc/profile.d/hadoop.sh"
+        state: touch
+        mode: "0644"
+
+    - name: Set Hadoop environment variables for all users
+      lineinfile:
+        path: "/etc/profile.d/hadoop.sh"
+        line: "{{ item }}"
+        state: present
+      with_items:
+        - "export HADOOP_HOME=/root/.sdkman/candidates/hadoop/current"
+        - "export HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop"
+        - "export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin"
+
+    - name: Create Spark environment variable file if it does not exist
+      file:
+        path: "/etc/profile.d/spark.sh"
+        state: touch
+        mode: "0644"
+
+    - name: Set Spark environment variables for all users
+      lineinfile:
+        path: "/etc/profile.d/spark.sh"
+        line: "{{ item }}"
+        state: present
+      with_items:
+        - "export SPARK_HOME=/root/.sdkman/candidates/spark/current"
+        - "export PATH=$PATH:$SPARK_HOME/bin"
+
+    - name: Create Java environment variable file if it does not exist
+      file:
+        path: "/etc/profile.d/java.sh"
+        state: touch
+        mode: "0644"
+
+    - name: Set JAVA_HOME environment variables for all users
+      lineinfile:
+        path: "/etc/profile.d/java.sh"
+        line: "{{ item }}"
+        state: present
+      with_items:
+        - "export JAVA_HOME={{ JAVA_HOME }}"
+        - "export PATH=$PATH:$JAVA_HOME/bin"
+
+   
