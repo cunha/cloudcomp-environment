@@ -94,6 +94,16 @@
       delay: 3
       with_items: "{{students}}"
 
+    - name: Set password for ArgoCD Admins
+      command: "argocd account update-password --account {{ item.username }} --new-password {{ item.pubkey | md5 }} --current-password {{ random_password }} --insecure "
+      retries: 3
+      delay: 3
+      with_items: "{{admins}}"
+
+    - name: Create ArgoCD projects for each admin
+      command: "argocd proj create {{item.username}}-project -d https://kubernetes.default.svc,{{item.username}} -s '*' --upsert"
+      with_items: "{{admins}}"
+
     - name: Create ArgoCD projects for each user
       command: "argocd proj create {{item.username}}-project -d https://kubernetes.default.svc,{{item.username}} -s '*' --upsert"
       with_items: "{{students}}"

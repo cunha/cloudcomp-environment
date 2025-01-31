@@ -27,3 +27,9 @@
       loop: "{{ students }}"
       loop_control:
         loop_var: user
+
+    - name: Setup Kubernetes Admins' Configs
+      include_tasks: admin-config.yml
+      loop: "{{ admins }}"
+      loop_control:
+        loop_var: user

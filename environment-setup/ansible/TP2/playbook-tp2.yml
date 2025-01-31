@@ -12,6 +12,7 @@
   roles:
     - common
     - accounts
+    - monitoring-service
     - docker
     - k3s
     - kubernetes

@@ -14,6 +14,7 @@ apt_packages:
   - wget
   - systemd
   - nfs-common
+
 pip_packages:
   - networkx
   - nltk
@@ -21,3 +22,5 @@ pip_packages:
   - wheel
   - bcrypt==4.1.0
   - netaddr
+  - redis
+  - icecream

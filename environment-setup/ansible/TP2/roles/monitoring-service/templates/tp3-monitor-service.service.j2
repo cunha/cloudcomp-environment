@@ -1,0 +1,10 @@
+[Unit]
+Description=CloudComp Lambda Assignment Performance Monitor
+After=multi-user.target redis-server.service
+Requires=redis-server.service
+[Service]
+Type=simple
+Restart=always
+ExecStart=/usr/bin/python3 /root/tp3-monitor.py
+[Install]
+WantedBy=multi-user.target

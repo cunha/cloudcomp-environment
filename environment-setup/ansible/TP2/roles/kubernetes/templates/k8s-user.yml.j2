@@ -7,10 +7,11 @@ metadata:
   namespace: {{ user.username }}
 spec:
   limits:
-  - default:
-      memory: 500M
-    max:
-      memory: 2500M
+  - max:
+      memory: 2000M
+    defaultRequest:
+      memory: 128M
+      cpu: 0.001
     type: Container
 
 ---
@@ -60,7 +61,7 @@ metadata:
   namespace: {{ user.username }}
 rules:
 - apiGroups: ["","extensions", "apps"]
-  resources: ["deployments", "secrets", "endpoints", "replicasets", "pods", "services", "ingresses", "events", "configmaps", "persistentvolumeclaims"]
+  resources: ["deployments", "secrets", "endpoints", "replicasets", "pods", "services", "ingresses", "events", "configmaps", "persistentvolumeclaims", "pods/log"]
   verbs: ["*"]
 
 - apiGroups: ["batch"]

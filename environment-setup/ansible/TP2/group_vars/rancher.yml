@@ -22,4 +22,3 @@ cluster_domain: "cluster.local"
 random_password: "{{ lookup('ansible.builtin.password', '/dev/null', chars=['ascii_letters', 'digits'], length=15, seed=inventory_hostname) }}"
 
 kubernetes_version: "v1.30"
-INSTALL_K3S_VERSION: "v1.30.6+k3s1"

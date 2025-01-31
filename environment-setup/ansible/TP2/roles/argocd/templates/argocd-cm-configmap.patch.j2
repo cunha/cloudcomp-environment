@@ -4,3 +4,6 @@ data:
 {% for student in students %}
   accounts.{{student.username}}: apiKey,login
 {% endfor -%}
+{% for admin in admins %}
+  accounts.{{admin.username}}: apiKey,login
+{% endfor -%}

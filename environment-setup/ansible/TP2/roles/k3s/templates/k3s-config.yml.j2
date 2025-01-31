@@ -6,3 +6,5 @@ cluster-init: true
 kubelet-arg:
   - "resolv-conf=/etc/k3s-resolv.conf"
   - "max-pods=300"
+kube-apiserver-arg:
+  - "service-node-port-range=30000-52200"
