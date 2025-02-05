@@ -30,7 +30,7 @@
     - name: Applying k8s user configurations
       raw: kubectl apply -f ~/k8s-configs/k8s-user-{{user.username}}.yml
 
-    - name: Running kubeconfig generation script for students
+    - name: Running kubeconfig generation script for admins
       shell: ~/k8s-configs/generate-user-k8s-config.sh {{ user.username }} {{ current_machine_ipaddress }} {{ cluster_name }}
 
     - name: Creating PersistentVolume folders

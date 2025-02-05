@@ -1,7 +1,37 @@
+---
+
 apiVersion: v1
-kind: Namespace
+kind: LimitRange
 metadata:
-  name: {{ user.username }}
+  name: memory-limit-range
+  namespace: {{ user.username }}
+spec:
+  limits:
+  - max:
+      memory: 2000M
+    defaultRequest:
+      memory: 128M
+      cpu: 0.001
+    type: Container
+
+---
+
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: storage-consumption-{{ user.username }}
+  namespace: {{ user.username }}
+spec:
+  hard:
+  {%- for student in students +%}
+  {%- if student.username != user.username +%}
+    default-storage-class-{{student.username}}.storageclass.storage.k8s.io/persistentvolumeclaims: "0"
+  {%- endif +%}
+  {%- endfor +%}
+    persistentvolumeclaims: "3"
+    local-path.storageclass.storage.k8s.io/persistentvolumeclaims: "0"
+    requests.storage: "1Gi"
+    default-storage-class-{{user.username}}.storageclass.storage.k8s.io/persistentvolumeclaims: "3"
 
 ---
 
@@ -30,17 +60,15 @@ metadata:
   name: {{ user.username }}
   namespace: {{ user.username }}
 rules:
-- apiGroups: ["", "extensions", "apps"]
-  resources: ["*"]
+- apiGroups: ["","extensions", "apps"]
+  resources: ["deployments", "secrets", "endpoints", "replicasets", "pods", "services", "ingresses", "events", "configmaps", "persistentvolumeclaims", "pods/log"]
   verbs: ["*"]
+
 - apiGroups: ["batch"]
   resources:
   - jobs
   - cronjobs
   verbs: ["*"]
-- apiGroups: [""]
-  resources: ["persistentvolumes"]
-  verbs: ["get", "list", "watch", "patch"]
 
 ---
 
@@ -57,4 +85,38 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: {{ user.username }}
-  
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ user.username }}_cluster_role
+rules:
+
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  resourceNames: ["{{pv_basename}}-{{user.username}}"]
+  verbs: ["list", "watch", "get"]
+
+- apiGroups: ["storage.k8s.io", "core" ]
+  resources: [ "storageclasses" ]
+  resourceNames: ["default-storage-class-{{user.username}}"]
+  verbs: ["get", "list", "watch"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ user.username }}_cluster_role_binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ user.username }}_cluster_role
+subjects:
+  - kind: ServiceAccount
+    name: {{ user.username }}
+    namespace: {{ user.username }}
+
+    

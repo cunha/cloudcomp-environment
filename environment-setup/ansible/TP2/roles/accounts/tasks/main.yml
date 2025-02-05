@@ -35,7 +35,6 @@
   become: true
   user:
     name: "{{ item.username }}"
-    password: "{{ item.password }}"
     shell: /bin/bash
     groups: sudo
     createhome: yes

@@ -9,7 +9,7 @@ Vagrant.configure("2") do |config|
 
 
   config.vm.define "cloud" do |cloud|
-    cloud.vm.box = "debian/bullseye64"
+    cloud.vm.box = "debian/bookworm64"
     config.vm.network "private_network", ip: "172.30.1.5"
     
     cloud.vm.provision "ansible" do |ansible|

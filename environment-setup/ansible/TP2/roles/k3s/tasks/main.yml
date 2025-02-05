@@ -6,7 +6,6 @@
   tags:
     - k3
 
-
 - name: Prepare environment for kubernetes
   include_tasks: prepare_kubernetes.yml
   tags:

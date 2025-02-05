@@ -1,0 +1,42 @@
+- name: Install Apt packages
+  become: true
+  apt:
+    name: "{{ apt_packages }}"
+    state: latest
+    update_cache: yes
+
+- name: Setup Redis Bind Line
+  become: true
+  lineinfile:
+    dest: /etc/redis/redis.conf
+    regexp: "^(.*)bind(.*)$"
+    line: "bind 0.0.0.0"
+    backrefs: yes
+
+- name: Allow Redis to get Connected
+  become: true
+  lineinfile:
+    dest: /etc/redis/redis.conf
+    regexp: "^(.*)protected-mode(.*)$"
+    line: "protected-mode no"
+    backrefs: yes
+
+- name: Restart Redis
+  become: true
+  service:
+    name: redis-server
+    enabled: yes
+    state: restarted
+
+- name: Setup Monitoring Service
+  include_tasks: monitor.yaml
+  tags: monitoring
+
+- name: Generate cronjob for docker cleanup
+  become: true
+  cron:
+    name: "Docker Cleanup"
+    minute: "0"
+    hour: "0"
+    job: "docker system prune -f && systemctl restart docker"
+    user: root

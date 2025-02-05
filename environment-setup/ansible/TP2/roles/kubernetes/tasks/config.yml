@@ -7,16 +7,6 @@
         state: directory
         mode: 0755
 
-    - name: Generate Storage Class Configuration
-      become: true
-      template:
-        src: "k8s-storage-class.yml.j2"
-        dest: "~/k8s-configs/k8s-storage-class.yml"
-
-    - name: Create StorageClass
-      become: true
-      shell: kubectl apply -f ~/k8s-configs/k8s-storage-class.yml
-
     - name: Copy student kubeconfig generation script
       copy:
         src: files/generate-user-k8s-config.sh
@@ -35,5 +25,11 @@
     - name: Setup Kubernetes Users' Configs
       include_tasks: user-config.yml
       loop: "{{ students }}"
+      loop_control:
+        loop_var: user
+
+    - name: Setup Kubernetes Admins' Configs
+      include_tasks: admin-config.yml
+      loop: "{{ admins }}"
       loop_control:
         loop_var: user

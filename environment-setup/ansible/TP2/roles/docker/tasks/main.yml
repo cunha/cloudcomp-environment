@@ -51,3 +51,12 @@
   with_items: "{{ students }}"
   loop_control:
     label: "{{ item.username }}"
+
+- name: Generate cronjob for docker cleanup
+  become: true
+  cron:
+    name: "Docker Cleanup"
+    minute: "0"
+    hour: "0"
+    job: "docker system prune -f && systemctl restart docker"
+    user: root
