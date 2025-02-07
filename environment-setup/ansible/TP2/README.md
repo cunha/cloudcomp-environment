@@ -1,3 +1,26 @@
+# Starting the cluster configuration with ansible
+Currently all the configuration, package installation is done via ansible, the playbook-tp2.yml contains the multiple roles that are used to achieve final cluster configuration. It will run:
+
+1. Install Packages and do initial user creation (admins and students)
+2. The monitoring-service role creates an instance of redis and starts the monitoring service as part of the TP3.
+3. Installs docker, k3s and does general kubernetes configurations.
+4. Creates all the kubernetes service users and setup their roles and permissions.
+5. Permissions were updated to allow users to only create pvcs to a specific storage class and within that class to only create one pvc and disallow all others. (new)
+5. Installs rancher and exposes it on port 30443, creates all users in rancher. (new)
+6. Installs argocd and exposes it on port 31443 and creates all users in argocd.
+7. Setup the firewall denying all requests from the outside world except for the SSH Port. (new)
+
+After running the ansible playbook in the cluster (namely playbook-tp2.yml) all of the above will be performed. Keep an eye out for the logs that it throws as the administrator password for rancher and ansible will be printed out. If you missed that, you can also use rancher's command in the cluster vm fetch such password. It's random but it's deterministic so it shouldn't change through runs for the same host machine.
+
+After the cluster is configured, an admin must login to rancher for the first time for the login process to be enabled. Such user must fetch the password using the command below in the cluster, go to the rancher dashboard login page in the port 30443 and go through the login process by using the username admin and password echoed by the command below.
+
+## Getting the admin password for rancher and ansible
+For getting rancher and ansible password, the following command must be ran in the cluster by using one of the admin accounts. The following command should be ran and the password stored in a secure location:
+
+```
+kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{ .data.bootstrapPassword|base64decode}}{{ "\n" }}'
+```
+
 # Starting cluster configuration from scratch
 
 ## Creating hadoop user
@@ -250,3 +273,8 @@ gets error, the following steps can be done only in master:
       it's better to not change the supervised setting;
 
 2. Restart Redis using `sudo /etc/init.d/redis-server restart` (or `sudo systemctl restart redis.service` when using `systemd`)
+
+# Known Issues
+
+## Docker can't resolve to pypi.org
+Some students have reported that Docker sometimes stop resolving to pypi.org, other domains might also be affected but this is the one that was reported. To resolve such issue, restarting the docker services should be ok.
