@@ -1,0 +1,100 @@
+---
+- name: Install Spark and Delta Lake
+  hosts: localhost
+  become: true
+  gather_facts: true
+  vars:
+    SDKMAN_DIR: "/opt/.sdkman"
+    JAVA_HOME: "{{ SDKMAN_DIR }}/candidates/java/current"
+    SPARK_HOME: "{{ SDKMAN_DIR }}/candidates/spark/current"
+  tasks:
+    - name: Install curl if not installed
+      apt:
+        name: curl
+        state: present
+
+    - name: Install SDKMAN globally
+      get_url:
+        url: "https://get.sdkman.io"
+        dest: "/opt/install_sdkman.sh"
+        mode: "0755"
+
+    - name: Run SDKMAN installation script globally
+      shell: |
+        export SDKMAN_DIR="/opt/.sdkman"
+        bash /opt/install_sdkman.sh
+      args:
+        creates: "{{ SDKMAN_DIR }}/bin/sdkman-init.sh"
+
+    - name: Change permissions of SDKMAN directory
+      command: "chmod -R 775 {{ SDKMAN_DIR }}"
+
+    - name: Load SDKMAN into environment globally
+      shell: |
+        export SDKMAN_DIR="/opt/.sdkman"
+        [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
+      args:
+        executable: /bin/bash
+
+    - name: Install Java via SDKMAN globally
+      shell: |
+        export SDKMAN_DIR="/opt/.sdkman"
+        [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
+        sdk install java 17.0.14-tem
+      args:
+        creates: "{{ SDKMAN_DIR }}/candidates/java"
+        executable: /bin/bash
+      register: java_install_output
+      failed_when: java_install_output.rc != 0
+
+    - name: Install Spark via SDKMAN globally
+      shell: |
+        export SDKMAN_DIR="/opt/.sdkman"
+        [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
+        sdk install spark 3.4.2
+      args:
+        creates: "{{ SDKMAN_DIR }}/candidates/spark"
+        executable: /bin/bash
+      register: spark_install_output
+      failed_when: spark_install_output.rc != 0
+
+    - name: Create a global symlink for Spark
+      file:
+        src: "{{ SPARK_HOME }}/bin/spark-submit"
+        dest: "/usr/local/bin/spark-submit"
+        state: link
+
+    - name: Create environment variable file
+      file:
+        path: "/etc/profile.d/sdkman_env.sh"
+        state: touch
+        mode: "0644"
+
+    - name: Install PySpark
+      shell: |
+        pip install pyspark
+      args:
+        executable: /bin/bash
+
+    - name: Install Delta-Spark 2.4.0
+      shell: |
+        pip install delta-spark==2.4.0
+      args:
+        executable: /bin/bash
+
+    - name: Set environment variables globally
+      lineinfile:
+        path: "/etc/profile.d/sdkman_env.sh"
+        line: "{{ item }}"
+        state: present
+      with_items:
+        - "export JAVA_HOME={{ JAVA_HOME }}"
+        - "export SPARK_HOME={{ SPARK_HOME }}"
+        - "export PATH=$PATH:{{ JAVA_HOME }}/bin:{{ SPARK_HOME }}/bin"
+        - "export PYSPARK_PYTHON=/usr/bin/python3"
+
+    - name: Source environment variables
+      shell: |
+        source /etc/profile.d/sdkman_env.sh
+      args:
+        executable: /bin/bash
