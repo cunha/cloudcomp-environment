@@ -1,0 +1,87 @@
+---
+- name: Install and configure JupyterHub
+  hosts: localhost
+  become: yes
+
+  tasks:
+    - name: Update system packages
+      apt:
+        update_cache: yes
+
+    - name: Install system dependencies
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-dev
+          - nodejs
+          - npm 
+        state: present
+
+    - name: Install JupyterHub and Python packages without --break-system-packages
+      shell: |
+        pip install jupyterhub jupyterlab notebook
+      args:
+        executable: /bin/bash
+
+    - name: Configuration Proxy
+      shell: |
+        npm install -g configurable-http-proxy
+      args:
+        executable: /bin/bash
+
+    - name: Create JupyterHub installation directory
+      file:
+        path: /opt/jupyterhub
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Copy configuration files
+      copy:
+        src: "{{ item }}"
+        dest: "/opt/jupyterhub/{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop:
+        - jupyterhub_config.py
+        - start_jupyterhub.sh
+
+    - name: Make start_jupyterhub.sh executable
+      file:
+        path: /opt/jupyterhub/start_jupyterhub.sh
+        mode: '0755'
+
+    - name: Create systemd service for JupyterHub
+      copy:
+        dest: /etc/systemd/system/jupyterhub.service
+        content: |
+          [Unit]
+          Description=JupyterHub
+          After=network.target
+
+          [Service]
+          User=root
+          ExecStart=/opt/jupyterhub/start_jupyterhub.sh
+          Restart=always
+          WorkingDirectory=/opt/jupyterhub
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+
+    - name: Reload systemd to apply new service
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable JupyterHub service to start on boot
+      systemd:
+        name: jupyterhub
+        enabled: yes
+
+    - name: Start JupyterHub service
+      systemd:
+        name: jupyterhub
+        state: started
