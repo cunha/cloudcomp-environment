@@ -82,13 +82,13 @@
 
     - name: Install PySpark
       shell: |
-        pip install pyspark
+        pip install --no-cache-dir pyspark
       args:
         executable: /bin/bash
 
     - name: Install Delta-Spark 2.4.0
       shell: |
-        pip install delta-spark==2.4.0
+        pip install --no-cache-dir delta-spark==2.4.0
       args:
         executable: /bin/bash
 
