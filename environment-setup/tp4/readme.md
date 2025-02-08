@@ -6,7 +6,7 @@ This document outlines the steps required to configure the environment for TP4 u
 
 - **users**: Manages user creation and assigns passwords, which are stored as the MD5 hash of each user's public key.
 - **frameworks**: Oversees the installation of Spark and Delta.
-- **jupyterHub**: Hosts Jupyter on `localhost:8000`, enabling an interactive workspace for development.
+- **jupyterhub**: Hosts Jupyter on `localhost:8000`, enabling an interactive workspace for development.
 - **data**: Download Spotify data into the VM.
 
 ## Prerequisites
