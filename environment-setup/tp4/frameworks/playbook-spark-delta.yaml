@@ -13,7 +13,14 @@
         name: curl
         state: present
 
+    - name: Ensure /opt directory exists
+      file:
+        path: "/opt"
+        state: directory
+        mode: "0755"
+
     - name: Install SDKMAN globally
+      become: true
       get_url:
         url: "https://get.sdkman.io"
         dest: "/opt/install_sdkman.sh"
