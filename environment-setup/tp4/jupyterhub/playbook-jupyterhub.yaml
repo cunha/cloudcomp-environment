@@ -18,7 +18,7 @@
           - npm 
         state: present
 
-    - name: Install JupyterHub and Python packages without --break-system-packages
+    - name: Install JupyterHub
       shell: |
         pip install jupyterhub jupyterlab notebook
       args:
@@ -38,7 +38,7 @@
         group: root
         mode: '0755'
 
-    - name: Copy configuration files
+    - name: Copy configuration file
       copy:
         src: "{{ item }}"
         dest: "/opt/jupyterhub/{{ item }}"
@@ -49,24 +49,22 @@
         - jupyterhub_config.py
         - start_jupyterhub.sh
 
-    - name: Make start_jupyterhub.sh executable
-      file:
-        path: /opt/jupyterhub/start_jupyterhub.sh
-        mode: '0755'
-
     - name: Create systemd service for JupyterHub
       copy:
         dest: /etc/systemd/system/jupyterhub.service
         content: |
           [Unit]
-          Description=JupyterHub
+          Description=JupyterHub Service
           After=network.target
 
           [Service]
+          Type=simple
           User=root
-          ExecStart=/opt/jupyterhub/start_jupyterhub.sh
-          Restart=always
           WorkingDirectory=/opt/jupyterhub
+          ExecStart=/usr/local/bin/jupyterhub
+          Restart=always
+          StandardOutput=append:/var/log/jupyterhub.log
+          StandardError=append:/var/log/jupyterhub.log
 
           [Install]
           WantedBy=multi-user.target
