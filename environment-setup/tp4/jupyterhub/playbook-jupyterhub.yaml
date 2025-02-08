@@ -1,0 +1,85 @@
+---
+- name: Install and configure JupyterHub
+  hosts: localhost
+  become: yes
+
+  tasks:
+    - name: Update system packages
+      apt:
+        update_cache: yes
+
+    - name: Install system dependencies
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-dev
+          - nodejs
+          - npm 
+        state: present
+
+    - name: Install JupyterHub
+      shell: |
+        pip install jupyterhub jupyterlab notebook
+      args:
+        executable: /bin/bash
+
+    - name: Configuration Proxy
+      shell: |
+        npm install -g configurable-http-proxy
+      args:
+        executable: /bin/bash
+
+    - name: Create JupyterHub installation directory
+      file:
+        path: /opt/jupyterhub
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+
+    - name: Copy configuration file
+      copy:
+        src: "{{ item }}"
+        dest: "/opt/jupyterhub/{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop:
+        - jupyterhub_config.py
+        - start_jupyterhub.sh
+
+    - name: Create systemd service for JupyterHub
+      copy:
+        dest: /etc/systemd/system/jupyterhub.service
+        content: |
+          [Unit]
+          Description=JupyterHub Service
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory=/opt/jupyterhub
+          ExecStart=/usr/local/bin/jupyterhub
+          Restart=always
+          StandardOutput=append:/var/log/jupyterhub.log
+          StandardError=append:/var/log/jupyterhub.log
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: '0644'
+
+    - name: Reload systemd to apply new service
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable JupyterHub service to start on boot
+      systemd:
+        name: jupyterhub
+        enabled: yes
+
+    - name: Start JupyterHub service
+      systemd:
+        name: jupyterhub
+        state: started

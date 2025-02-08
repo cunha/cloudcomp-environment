@@ -1,0 +1,26 @@
+---
+- name: Create /shared/sampled and Download Datasets
+  hosts: localhost
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Ensure /shared/sampled directory exists
+      file:
+        path: "/shared/sampled"
+        state: directory
+        mode: "0755"
+
+    - name: Download playlist.json
+      get_url:
+        url: "https://homepages.dcc.ufmg.br/~cunha/hosted/cloudcomp-2024s2-datasets-tp1/playlist.json"
+        dest: "/shared/sampled/playlist.json"
+        mode: "0644"
+        validate_certs: no
+
+    - name: Download tracks.json
+      get_url:
+        url: "https://homepages.dcc.ufmg.br/~cunha/hosted/cloudcomp-2024s2-datasets-tp1/tracks.json"
+        dest: "/shared/sampled/tracks.json"
+        mode: "0644"
+        validate_certs: no
