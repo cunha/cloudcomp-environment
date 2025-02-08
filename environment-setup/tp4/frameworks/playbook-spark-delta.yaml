@@ -8,9 +8,12 @@
     JAVA_HOME: "{{ SDKMAN_DIR }}/candidates/java/current"
     SPARK_HOME: "{{ SDKMAN_DIR }}/candidates/spark/current"
   tasks:
-    - name: Install curl if not installed
+    - name: Install required system packages
       apt:
-        name: curl
+        name: 
+          - curl
+          - zip
+          - unzip
         state: present
 
     - name: Ensure /opt directory exists
@@ -58,7 +61,7 @@
       shell: |
         export SDKMAN_DIR="/opt/.sdkman"
         [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
-        sdk install spark 3.4.2
+        sdk install spark
       args:
         creates: "{{ SDKMAN_DIR }}/candidates/spark"
         executable: /bin/bash
