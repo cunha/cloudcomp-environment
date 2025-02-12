@@ -7,7 +7,7 @@ argocd_server_name: "argocd"
 current_machine_ipaddress: "{{ hostvars['cloud'].ansible_default_ipv4.address
   | default(hostvars['cloud'].ansible_all_ipv4_addresses[0]) }}"
 
-pv_basename: project2-pv2
+pv_basename: project2-pv
 
 cert_manager_version: "v1.8.0"
 

@@ -10,83 +10,17 @@ Currently all the configuration, package installation is done via ansible, the p
 6. Installs argocd and exposes it on port 31443 and creates all users in argocd.
 7. Setup the firewall denying all requests from the outside world except for the SSH Port. (new)
 
-After running the ansible playbook in the cluster (namely playbook-tp2.yml) all of the above will be performed. Keep an eye out for the logs that it throws as the administrator password for rancher and ansible will be printed out. If you missed that, you can also use rancher's command in the cluster vm fetch such password. It's random but it's deterministic so it shouldn't change through runs for the same host machine.
-
-After the cluster is configured, an admin must login to rancher for the first time for the login process to be enabled. Such user must fetch the password using the command below in the cluster, go to the rancher dashboard login page in the port 30443 and go through the login process by using the username admin and password echoed by the command below.
-
-## Getting the admin password for rancher and ansible
-For getting rancher and ansible password, the following command must be ran in the cluster by using one of the admin accounts. The following command should be ran and the password stored in a secure location:
+After running the ansible playbook in the cluster (namely playbook-tp2.yml) all of the above will be performed. Keep an eye out for the logs that it throws as the administrator password for rancher and ansible will be printed out. If you missed that, you can also use rancher's command in the cluster vm fetch such password. It's random but it's deterministic so it shouldn't change through runs for the same host machine. The command below can be used to get the current bootstrap password:
 
 ```
 kubectl get secret --namespace cattle-system bootstrap-secret -o go-template='{{ .data.bootstrapPassword|base64decode}}{{ "\n" }}'
 ```
 
+After the cluster is configured, an admin must login to rancher for the first time for the login process to be enabled. Such user must fetch the password using the command above in the cluster, go to the rancher dashboard login page in the port 30443 and go through the login process by using the username admin and password echoed by the command above.
+
+The same password will be used as initial passwords for both rancher and ansible admin accounts.
+
 # Starting cluster configuration from scratch
-
-## Creating hadoop user
-
-1. Create a hadoop user with public/private keys
-
-    ```bash
-    sudo useradd --create-home hadoop  # password is disabled by default
-    sudo usermod -aG sudo hadoop
-    sed -i 's/%sudo ALL=(ALL:ALL) ALL/%sudo ALL=(ALL:ALL) NOPASSWD:ALL/' /etc/
-    sudo su - hadoop
-    ssh-keygen -b 2048 -N '' -t rsa -f /home/hadoop/.ssh/id_rsa -q
-    cp .ssh/id_rsa.pub .ssh/authorized_keys
-    chown -R hadoop.hadoop /home/hadoop
-    ```
-
-    If using the Vagrant VM, the provisioning script already created the
-    user and its SSH pubkey.  In this case, just copy the file locally to
-    allow Ansible to SSH.  Run this from the `../vagrant` directory where
-    the Vagrantfile is located.
-
-    ```bash
-    vagrant ssh -c "sudo cat /home/hadoop/.ssh/id_rsa" cloud | tr -d "\r"
-    ```
-
-    The `tr -d "\r"` is needed because vagrant somehow outputs files with
-    DOS linebreaks.
-
-2. Add the public keys in all VMs, to enable SSH connections between
-   them
-
-3. Install general packages: `ansible-playbook -i hosts.ini
-   install-packages.yml`
-
-## Installing Hadoop and Spark
-
-1. Install Hadoop (HDFS, YARN, MapReduce): `ansible-playbook -i
-   hosts.ini playbook-hadoop.yml`
-
-2. Format HDFS: `hdfs namenode -format`
-
-3. Install Spark: `ansible-playbook -i hosts.ini playbook-spark.yml`
-
-4. Start all processes by running `hadoop/sbin/start-all.sh`
-
-5. If using Yarn as Spark scheduler:
-
-    1. Create the archive: `jar cv0f spark-libs.jar -C $SPARK_HOME/jars/ .`
-
-    2. Upload to HDFS: `hdfs dfs -put spark-libs.jar /user/spark/jars/`.
-
-    3. For a large cluster, increase the replication count of the Spark
-       archive so that you reduce the amount of times a NodeManager will
-       do a remote copy. `hdfs dfs -setrep -w 1
-       /user/spark/jars/spark-libs.jar` (Change the amount of replicas
-       proportional to the number of total DataNodes)
-
-    4. Set `spark.yarn.archive` in
-       `/home/hadoop/spark/conf/spark-defaults.conf` to
-       `/user/spark/jars/spark-libs.jar`
-
-## Installing Docker and Kubernetes
-
-1. Install Docker: `ansible-playbook -i hosts.ini playbook-docker.yml`
-
-2. Install Kubernetes: `ansible-playbook -i hosts.ini playbook-kubernetes.yml`
 
 ### Manual Kubernetes setup (only in case of error)
 
@@ -114,7 +48,6 @@ gets error, the following steps can be done only in master:
 
     ```{bash}
     sudo kubeadm reset
-    rm -rf /home/hadoop/.kube
     rm -rf /root/.kube
     rm -rf /etc/cni/net.d
     iptables -F
@@ -122,7 +55,7 @@ gets error, the following steps can be done only in master:
     systemctl reload docker containerd
     ```
 
-* If you restart the VM and K8s is not back up, you can re-run the kubernetes playbook, just comment out the `kubeadm --init` task as that cannot be run a second time.
+* If you restart the VM and K3s is not back up, you can re-run the kubernetes playbook, just comment out the `kubeadm --init` task as that cannot be run a second time.
 
 * You may need to untaint the master node to allow processes to run on
   it: `kubectl taint node --all node-role.kubernetes.io/master:NoSchedule-` and/or
@@ -239,6 +172,9 @@ gets error, the following steps can be done only in master:
 
    [issue#7799]: https://github.com/containerd/containerd/issues/7799
 
+* **Error 5: Docker can't resolve to pypi.org**
+Some students have reported that Docker sometimes stop resolving to pypi.org, other domains might also be affected but this is the one that was reported. To resolve such issue, restarting the docker services should be ok.
+
 ## Adding students users (system, HDFS and Kubernetes)
 
 1. Add each user's public key inside folder `ansible/pubkeys` in the
@@ -273,8 +209,3 @@ gets error, the following steps can be done only in master:
       it's better to not change the supervised setting;
 
 2. Restart Redis using `sudo /etc/init.d/redis-server restart` (or `sudo systemctl restart redis.service` when using `systemd`)
-
-# Known Issues
-
-## Docker can't resolve to pypi.org
-Some students have reported that Docker sometimes stop resolving to pypi.org, other domains might also be affected but this is the one that was reported. To resolve such issue, restarting the docker services should be ok.

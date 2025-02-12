@@ -1,25 +1,11 @@
-#!/bin/bash
 set -eu
-is_file_exists(){
 
-    local file="$1"
-
-    # [ (test) could have been used here
-    # Is the name given a regular file?        
-    if  [[ -f $file ]]     # quotes not required with [[ (but are with [ )
-    then
-        return 0
-    else
-        return 1
-    fi
-}
 STUDENT=$1
 CURRENT_MACHINE_IP=$2
 CLUSTER_NAME=$3
-if is_file_exists "/home/$STUDENT/.kube/config"
-then
-    exit 0
-fi
+
+[[ -f "/home/$STUDENT/.kube/config" ]] && exit 0
+
 echo "Setting up user: $STUDENT"
 
 set -o errexit

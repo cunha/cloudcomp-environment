@@ -12,8 +12,8 @@
 
 - name: Deploy Redis Monitor Python File
   become: true
-  template:
-    src: "tp3-monitor.py.j2"
+  copy:
+    src: "files/tp3-monitor.py"
     dest: "/root/tp3-monitor.py"
     owner: root
     group: root
@@ -21,8 +21,8 @@
 
 - name: Generate Monitor Service
   become: true
-  template:
-    src: "tp3-monitor-service.service.j2"
+  copy:
+    src: "files/tp3-monitor-service.service"
     dest: /etc/systemd/system/tp3-monitor-service.service
     mode: 0755
 

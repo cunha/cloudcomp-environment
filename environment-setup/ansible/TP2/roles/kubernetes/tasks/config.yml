@@ -15,8 +15,8 @@
 
     - name: Applying k8s configurations for all
       become: true
-      template:
-        src: "user-profile.sh.j2"
+      copy:
+        src: "files/user-profile.sh"
         dest: "/etc/profile.d/k3s.sh"
         owner: root
         group: root
