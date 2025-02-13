@@ -1,0 +1,58 @@
+- name: Check if systemd exists
+  stat: path=/lib/systemd/system/
+  register: systemd_check
+
+- name: Adjust the /etc/hosts
+  become: True
+  lineinfile:
+    dest: /etc/hosts
+    line: "127.0.0.1 {{ rancher_server_name }} argocd.{{ rancher_server_name }} controlplane.local podinfo.local argocd-server"
+    state: present
+
+- name: Ensure br_netfilter is enabled.
+  modprobe:
+    name: br_netfilter
+    state: present
+
+- name: Add the br_netfilter module to work across reboot
+  shell: |
+    echo br_netfilter > /etc/modules-load.d/br_netfilter.conf & lsmod | grep br_netfilter
+
+- name: Disabling swapoff so k8s works correctly
+  become: true
+  shell: swapoff -a
+- name: Adjust the /etc/hosts
+  become: True
+  lineinfile:
+    dest: /etc/hosts
+    line: "{{ current_machine_ipaddress }} rancher.{{ cluster_domain }} argocd.{{ cluster_domain }} controlplane.local podinfo.local argocd-server"
+    state: present
+
+- name: Configure Sysctl
+  become: True
+  shell: modprobe overlay && modprobe br_netfilter
+
+- name: Conf Sysctl iptables
+  become: True
+  sysctl:
+    name: "{{ item }}"
+    value: 1
+    state: present
+    reload: yes
+  with_items:
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-ip6tables
+    - net.ipv4.ip_forward
+
+- name: Kubernetes Systctl Creation
+  become: True
+  shell: |
+    tee /etc/sysctl.d/kubernetes.conf<<EOF
+    net.bridge.bridge-nf-call-ip6tables = 1
+    net.bridge.bridge-nf-call-iptables = 1
+    net.ipv4.ip_forward = 1
+    EOF
+
+- name: Kubernetes Sysctl Run
+  become: True
+  shell: sysctl --system

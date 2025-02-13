@@ -1,0 +1,24 @@
+dns_resolver_extra: "192.168.1.1"
+k3s_admin_user: "root"
+k3s_ssh_key: "k3s_admin_key"
+k3s_ssh_key_path: "~/.ssh/"
+rancher_server_name: "rancher"
+argocd_server_name: "argocd"
+current_machine_ipaddress: "{{ hostvars['cloud'].ansible_default_ipv4.address
+  | default(hostvars['cloud'].ansible_all_ipv4_addresses[0]) }}"
+
+pv_basename: project2-pv
+
+cert_manager_version: "v1.8.0"
+
+RANCHER_EXPOSED_PORT_HTTPS: 30443
+RANCHER_EXPOSED_PORT_HTTP: 30080
+ARGOCD_EXPOSED_PORT_HTTPS: 31443
+ARGOCD_EXPOSED_PORT_HTTP: 31080
+
+cluster_name: "local"
+cluster_domain: "cluster.local"
+
+random_password: "{{ lookup('ansible.builtin.password', '/dev/null', chars=['ascii_letters', 'digits'], length=15, seed=inventory_hostname) }}"
+
+kubernetes_version: "v1.30"

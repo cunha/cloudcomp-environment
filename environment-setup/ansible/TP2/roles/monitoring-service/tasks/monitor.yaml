@@ -1,0 +1,35 @@
+- name: Generate Monitor Service Folder
+  become: true
+  file:
+    path: ~/monitor-service
+    state: directory
+
+- name: Generate Monitor File
+  become: true
+  file:
+    path: /root/monitor-service
+    state: directory
+
+- name: Deploy Redis Monitor Python File
+  become: true
+  copy:
+    src: "files/tp3-monitor.py"
+    dest: "/root/tp3-monitor.py"
+    owner: root
+    group: root
+    mode: 0755
+
+- name: Generate Monitor Service
+  become: true
+  copy:
+    src: "files/tp3-monitor-service.service"
+    dest: /etc/systemd/system/tp3-monitor-service.service
+    mode: 0755
+
+- name: Enable Monitor Service
+  become: true
+  systemd:
+    name: tp3-monitor-service
+    enabled: yes
+    state: started
+    daemon_reload: yes

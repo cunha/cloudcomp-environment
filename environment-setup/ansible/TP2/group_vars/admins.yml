@@ -1,0 +1,4 @@
+admins:
+  - username: tstadmin
+    password: $6$OntSql4.a$O9qxiDGHjmvM1o6LTt54rSq9jr//.KiS9xJqq7zd6KUHDrQH.hE5mYtwdAKa9Xi6X.CuASuzitSzJQW3Kvv230
+    pubkey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGLr/eF/LPQ9kmX3LrpRfQhmlFg+UOZ0sgIvVsg+oH15 tstadmin@timbersaw

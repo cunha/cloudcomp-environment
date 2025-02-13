@@ -1,0 +1,2 @@
+argocd_backup_dir: ~/argocd-backups
+argocd_config_dir: ~/argocd-config

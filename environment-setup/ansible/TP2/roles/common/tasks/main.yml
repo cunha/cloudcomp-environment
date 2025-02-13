@@ -1,0 +1,53 @@
+---
+- name: Install Apt packages
+  become: true
+  apt:
+    name: "{{ apt_packages }}"
+    state: latest
+    update_cache: yes
+
+- name: Installing Python libraries
+  become: true
+  pip:
+    name: "{{ pip_packages }}"
+    state: latest
+    break_system_packages: True
+
+- name: Allow passwordless sudo
+  become: true
+  lineinfile:
+    dest: /etc/sudoers
+    state: present
+    regexp: '^%sudo ALL\='
+    line: "%sudo ALL=(ALL:ALL) NOPASSWD:ALL"
+    validate: "/usr/sbin/visudo -cf %s"
+
+- name: Remove requiretty from sudoers file
+  become: true
+  lineinfile:
+    dest: /etc/sudoers
+    state: absent
+    regexp: "^Defaults.*requiretty"
+
+- name: Install acl package to become unprivileged users
+  become: true
+  apt:
+    name: acl
+    state: present
+
+- name: Disable PasswordAuthentication on SSH server
+  become: true
+  lineinfile:
+    dest: /etc/ssh/sshd_config
+    state: present
+    regexp: ".*PasswordAuthentication.*"
+    line: "PasswordAuthentication no"
+  register: sshd_config
+
+- name: Restart SSH server
+  become: true
+  service:
+    name: ssh
+    enabled: yes
+    state: restarted
+  when: sshd_config.changed

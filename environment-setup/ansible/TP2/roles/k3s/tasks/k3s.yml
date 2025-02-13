@@ -1,0 +1,60 @@
+- name: Start K3S Installation
+  become: True
+  become_user: "{{ k3s_admin_user }}"
+  block:
+    - name: Create k3s_admin Group
+      group:
+        name: k3s_admin
+        state: present
+
+    - name: Allow IP Tables
+      shell: iptables -I INPUT 1 -i cni0 -s 10.42.0.0/16 -j ACCEPT
+
+    - name: Create K3S Admin non-system user
+      user:
+        name: "{{ k3s_admin_user }}"
+        groups: docker,k3s_admin
+        generate_ssh_key: yes
+        ssh_key_file: "{{ k3s_ssh_key_path }}{{ k3s_ssh_key }}"
+      register: k3s_user_data
+
+    - name: Set authorized key taken from file
+      ansible.posix.authorized_key:
+        user: "{{ k3s_admin_user }}"
+        state: present
+        key: "{{ k3s_user_data.ssh_public_key }}"
+
+    - name: Create Directory for K3S
+      become: True
+      ansible.builtin.file:
+        path: /etc/rancher
+        state: directory
+
+    - name: Create Directory for K3S
+      become: True
+      ansible.builtin.file:
+        path: /etc/rancher/k3s
+        state: directory
+
+    - name: Get Current Resolv Conf
+      shell: cat /etc/resolv.conf
+      register: current_resolution
+
+    - name: Generating Resolv Conf
+      template:
+        src: "k3s-resolv.conf.j2"
+        dest: "/etc/k3s-resolv.conf"
+        owner: root
+        group: root
+        mode: 0600
+
+    - name: Set Configs
+      template:
+        src: "k3s-config.yml.j2"
+        dest: "/etc/rancher/k3s/config.yaml"
+        owner: root
+        group: root
+        mode: 0644
+
+    - name: Start Cluster
+      shell: curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.30.6+k3s1 sh -s - --kube-apiserver-arg service-node-port-range="30000-52200"

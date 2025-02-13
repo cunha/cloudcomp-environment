@@ -1,0 +1,21 @@
+---
+- hosts: cloud
+  vars:
+    ansible_ssh_pipelining: true
+    student_groups: ""
+  gather_facts: true
+  vars_files:
+    - group_vars/admins.yml
+    - group_vars/students.yml
+    - group_vars/rancher.yml
+  become: true
+  roles:
+    - common
+    - accounts
+    - monitoring-service
+    - docker
+    - k3s
+    - kubernetes
+    - rancher
+    - argocd
+    - firewall

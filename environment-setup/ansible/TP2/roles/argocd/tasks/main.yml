@@ -1,0 +1,124 @@
+---
+- name: Check for existing helm installation
+  stat:
+    path: "/usr/local/bin/argocd"
+  register: argocd_installed
+  tags:
+    - argocd
+
+- name: Check for existing argo pods
+  become: true
+  ignore_errors: true
+  shell: kubectl -n argocd get pods -o name
+  register: argo_pods
+  tags:
+    - argocd
+
+- name: Install ArgoCD CLI
+  become: True
+  when: not argocd_installed.stat.exists
+  block:
+    - name: Installing ArgoCD CLI
+      shell: curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+
+    - name: Changing ArgoCD CLI permission
+      command: chmod +x /usr/local/bin/argocd
+
+    - name: Add ArgoCD Helm Repo
+      shell: helm repo add argo https://argoproj.github.io/argo-helm
+
+- name: Install ArgoCD
+  become: true
+  when: argo_pods.stdout == ""
+  block:
+    - name: Creating ArgoCD Namespace
+      command: kubectl create namespace argocd
+
+    - name: Installing ArgoCD
+      when: argo_pods.stdout == ""
+      retries: 2
+      delay: 3
+      command: helm install argocd argo/argo-cd --namespace argocd --set global.domain={{ argocd_server_name }}.{{ cluster_domain }} --set server.ingress.enabled=true --set server.certificate.issuer.name="pv2-selfsigned-issuer"
+
+    - name: Wait for ArgoCD to be ready
+      shell: |
+        kubectl get pods --namespace argocd --field-selector=status.phase!=Succeeded -o name | xargs -I {} kubectl wait --timeout=1000s --namespace argocd --for=condition=Ready {}
+
+    - name: Exposing ArgoCD Port
+      become: true
+      shell: |
+        kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "NodePort","ports": [ {"name": "argocd", "port": 80, "protocol": "TCP", "targetPort": 8080, "nodePort": {{ ARGOCD_EXPOSED_PORT_HTTP }}}, {"port": 443, "protocol": "TCP", "targetPort": 8080, "nodePort": {{ ARGOCD_EXPOSED_PORT_HTTPS }}}]}}'
+
+    - name: Get Current ArgoCD Password
+      shell: |
+        kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+      register: current_password
+
+    - name: Set new ArgoCD Password
+      shell: "argocd login --insecure --username admin --password '{{ current_password.stdout }}' localhost:31080 && argocd account update-password --new-password='{{ random_password }}' --current-password='{{ current_password.stdout }}'"
+      retries: 3
+      delay: 3
+
+    - name: Create backup directory
+      file:
+        path: "{{ argocd_backup_dir }}"
+        state: directory
+
+    - name: Backup current argocd-cm ConfigMap
+      shell: "kubectl get configmap argocd-cm -n argocd -o yaml > {{ argocd_backup_dir }}/argocd-cm.configmap-{{ ansible_date_time.iso8601 }}"
+
+    - name: Create config directory
+      file:
+        path: "{{ argocd_config_dir }}"
+        state: directory
+
+- name: Setup Argo for Users
+  become: true
+  block:
+    - name: Login to Argo
+      shell: "argocd login --insecure --username admin --password '{{ random_password }}' localhost:31080"
+      retries: 3
+      delay: 5
+
+    - name: Create argocd-cm ConfigMap patch file to create ArgoCD accounts
+      template:
+        src: templates/argocd-cm-configmap.patch.j2
+        dest: "{{argocd_config_dir}}/argocd-cm-configmap.patch"
+
+    - name: Update argocd-cm ConfigMap to create accounts for each user
+      command: "kubectl -n argocd patch configmap argocd-cm --patch-file {{argocd_config_dir}}/argocd-cm-configmap.patch"
+
+    - name: Set password for ArgoCD users
+      command: "argocd account update-password --account {{ item.username }} --new-password {{ item.pubkey | md5 }} --current-password {{ random_password }} --insecure "
+      retries: 3
+      delay: 3
+      with_items: "{{students}}"
+
+    - name: Set password for ArgoCD Admins
+      command: "argocd account update-password --account {{ item.username }} --new-password {{ item.pubkey | md5 }} --current-password {{ random_password }} --insecure "
+      retries: 3
+      delay: 3
+      with_items: "{{admins}}"
+
+    - name: Create ArgoCD projects for each admin
+      command: "argocd proj create {{item.username}}-project -d https://kubernetes.default.svc,{{item.username}} -s '*' --upsert"
+      with_items: "{{admins}}"
+
+    - name: Create ArgoCD projects for each user
+      command: "argocd proj create {{item.username}}-project -d https://kubernetes.default.svc,{{item.username}} -s '*' --upsert"
+      with_items: "{{students}}"
+
+    - name: Backup current argocd-rbac-cm ConfigMap
+      shell: "kubectl get configmap argocd-rbac-cm -n argocd -o yaml > {{argocd_backup_dir}}/argocd-rbac-cm.configmap-{{ansible_date_time.iso8601}}"
+
+    - name: Create argocd-rbac-cm ConfigMap patch file to setup permissions
+      template:
+        src: templates/argocd-rbac-cm-configmap.patch.j2
+        dest: "{{argocd_config_dir}}/argocd-rbac-cm-configmap.patch"
+
+    - name: Update argocd-rbac-cm-configmap to set up authentication
+      command: "kubectl -n argocd patch configmap argocd-rbac-cm --patch-file {{argocd_config_dir}}/argocd-rbac-cm-configmap.patch"
+
+    - name: Prompt user to login to ArgoCD
+      debug:
+        msg: "Login to ArgoCD or Rancher with username 'admin' and password '{{ random_password }}'"

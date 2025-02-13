@@ -1,0 +1,42 @@
+- name: Install and Enable NFTables
+  block:
+    - name: Install nftables
+      package:
+        name: nftables
+        state: present
+
+    - name: Enable nftables services
+      service:
+        name: nftables
+        enabled: yes
+        state: started
+
+  become: True
+
+- name: Generate Conf File
+  become: True
+  template:
+    src: nftables.conf.j2
+    dest: nftables.conf
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Reload Nftables
+  command: nft -f nftables.conf
+  become: True
+
+- name: Copy Nftables Conf
+  become: True
+  ansible.builtin.copy:
+    src: nftables.conf
+    dest: /etc/nftables.conf
+    remote_src: True
+
+- name: Enable Nftables Services
+  command: systemctl enable nftables
+  become: True
+
+- name: Start Nftables Service
+  command: systemctl start nftables
+  become: True

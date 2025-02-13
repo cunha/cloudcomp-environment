@@ -1,0 +1,120 @@
+- name: Check for existing helm installation
+  stat:
+    path: "/usr/local/bin/helm"
+  register: helm_install
+  tags:
+    - helm
+
+- name: Check for Rancher Namespace
+  become: True
+  shell: kubectl get ns -o=jsonpath='{range .items..metadata}{.name}{"\n"}{end}' | grep cattle-system
+  register: rancher_namespace
+  failed_when: rancher_namespace.rc != 1 and rancher_namespace.rc != 0
+
+- name: Create Rancher namespace
+  when: rancher_namespace.stdout == ""
+  become: True
+  shell: kubectl create namespace cattle-system
+  tags:
+    - kubernetes
+
+- name: Check for existing certmanager pods
+  become: True
+  shell: kubectl -n cert-manager get pods -o name
+  ignore_errors: true
+  register: cert_manager_pods
+  tags:
+    - rancher
+
+- name: Check for existing rancher pods
+  become: True
+  shell: kubectl -n cattle-system get pods -o name
+  ignore_errors: true
+  register: rancher_pods
+  tags:
+    - rancher
+
+- name: Download, install and setup helm environment
+  block:
+    - name: Start helm installation
+      include_tasks: helm.yml
+      when: not helm_install.stat.exists
+      tags:
+        - helm
+        - installation
+  become: True
+  tags:
+    - kubernetes
+    - installation
+    - setup
+
+- name: Begin Installation of Helm
+  become: true
+  when: cert_manager_pods.stdout == ""
+  block:
+    - name: Add Rancher to helm
+      shell: helm repo add rancher-stable https://releases.rancher.com/server-charts/stable --force-update
+      changed_when: false
+
+    - name: Add Jetstack
+      shell: helm repo add jetstack https://charts.jetstack.io --force-update
+      changed_when: false
+
+    - name: Helm Update repos
+      shell: helm repo update
+      changed_when: false
+
+    - name: Helm Install Cert Manager
+      shell: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version {{ cert_manager_version }} --set installCRDs=true --set podDnsConfig.nameservers[0]="8.8.8.8" --set podDnsConfig.nameservers[1]="1.1.1.1" --set crds.enabled=true --set crds.keep=true
+
+    - name: Wait until cert manager is ready
+      shell: "kubectl get pods --namespace cert-manager --field-selector=status.phase!=Succeeded -o name | xargs -I {} kubectl wait --timeout=900s --namespace cert-manager --for=condition=Ready {}"
+
+    - name: Create Cluster Issuer
+      template:
+        src: templates/cluster-issuer.yml.j2
+        dest: /tmp/cluster-issuer.yml
+
+    - name: Apply Cluster Issuer
+      shell: kubectl apply -f /tmp/cluster-issuer.yml
+
+- name: Rancher Installation
+  include_tasks: rancher_ui.yml
+  when: rancher_pods.stdout == ""
+  tags:
+    - rancher_ui
+
+- name: Get Admin Token
+  uri:
+    method: POST
+    status_code: 201
+    url: "https://{{ rancher_server_name }}.{{ cluster_domain }}/v3-public/localProviders/local?action=login"
+    body_format: json
+    headers:
+      content-type: application/json
+    validate_certs: false
+    body:
+      username: "admin"
+      password: "{{ random_password }}"
+      ttl: 60000
+  retries: 5
+  delay: 5
+  register: token
+
+- name: Create Users in Rancher
+  include_tasks: create-rancher-users.yml
+  vars:
+    access_token: "{{ token.json }}"
+    kind: "{{ student_kind }}"
+  loop: "{{ students }}"
+  loop_control:
+    loop_var: user
+
+- name: Create Admins in Rancher
+  include_tasks: create-rancher-users.yml
+  vars:
+    access_token: "{{ token.json }}"
+    kind: "{{ admin_kind }}"
+  loop: "{{ admins }}"
+  loop_control:
+    loop_var: user

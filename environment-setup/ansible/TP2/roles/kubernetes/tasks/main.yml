@@ -1,0 +1,10 @@
+- name: Configure Kubernetes
+  block:
+    - name: Start Kubernetes setup
+      include_tasks: config.yml
+  tags:
+    - kubernetes
+    - setup
+
+- name: Update CA certificates (Ubuntu/Debian)
+  command: update-ca-certificates

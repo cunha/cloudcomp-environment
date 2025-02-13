@@ -1,0 +1,27 @@
+data:
+  policy.default: role:''
+  policy.csv: |
+{% for student in students %}
+    p, role:{{student.username}}, applications, *, {{student.username}}-project/*, allow
+    p, role:{{student.username}}, projects, get, {{student.username}}-project, allow
+    p, role:{{student.username}}, certificates, *, *, allow
+    p, role:{{student.username}}, repositories, *, {{student.username}}-project/*, allow
+    p, role:{{student.username}}, clusters, get, *, allow
+    p, role:{{student.username}}, logs, get, {{student.username}}-project/*, allow
+    p, role:{{student.username}}, extensions, invoke, {{student.username}}-project/*, allow
+
+    g, {{student.username}}, role:{{student.username}}
+
+{% endfor -%}
+{% for admin in admins %}
+    p, role:{{admin.username}}, applications, *, {{admin.username}}-project/*, allow
+    p, role:{{admin.username}}, projects, get, {{admin.username}}-project, allow
+    p, role:{{admin.username}}, certificates, *, *, allow
+    p, role:{{admin.username}}, repositories, *, {{admin.username}}-project/*, allow
+    p, role:{{admin.username}}, clusters, get, *, allow
+    p, role:{{admin.username}}, logs, get, {{admin.username}}-project/*, allow
+    p, role:{{admin.username}}, extensions, invoke, {{admin.username}}-project/*, allow
+
+    g, {{admin.username}}, role:{{admin.username}}
+
+{% endfor -%}
