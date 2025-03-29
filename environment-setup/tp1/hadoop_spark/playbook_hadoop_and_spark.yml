@@ -1,0 +1,146 @@
+---
+- name: Install Hadoop and Spark with SDKMAN
+  hosts: localhost
+  become: true
+  gather_facts: true
+  vars:
+    SDKMAN_DIR: "/opt/.sdkman"
+    JAVA_HOME: "{{ SDKMAN_DIR }}/candidates/java/current"
+    HADOOP_HOME: "{{ SDKMAN_DIR }}/candidates/hadoop/current"
+    SPARK_HOME: "{{ SDKMAN_DIR }}/candidates/spark/current"
+  tasks:
+    - name: Install curl if not installed
+      apt:
+        name: curl
+        state: present
+
+    - name: Install SDKMAN globally
+      get_url:
+        url: "https://get.sdkman.io"
+        dest: "/opt/install_sdkman.sh"
+        mode: "0755"
+
+    - name: Run SDKMAN installation script globally
+      shell: |
+        export SDKMAN_DIR="/opt/.sdkman"
+        bash /opt/install_sdkman.sh
+      args:
+        creates: "{{ SDKMAN_DIR }}/bin/sdkman-init.sh"
+
+    - name: Change permissions of .sdkamn directories
+      become: true
+      command: "chmod -R 775 {{ SDKMAN_DIR }}"
+
+    - name: Load SDKMAN into environment globally
+      shell: |
+        export SDKMAN_DIR="/opt/.sdkman"
+        [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
+      args:
+        executable: /bin/bash
+
+    - name: Install Java via SDKMAN globally
+      shell: |
+        export SDKMAN_DIR="/opt/.sdkman"
+        [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
+        sdk install java
+      args:
+        creates: "{{ SDKMAN_DIR }}/candidates/java"
+        executable: /bin/bash
+      register: java_install_output
+      failed_when: java_install_output.rc != 0
+
+    - name: Install Hadoop via SDKMAN globally
+      shell: |
+        export SDKMAN_DIR="/opt/.sdkman"
+        [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
+        sdk install hadoop
+      args:
+        creates: "{{ SDKMAN_DIR }}/candidates/hadoop"
+        executable: /bin/bash
+      register: hadoop_install_output
+      failed_when: hadoop_install_output.rc != 0
+
+    - name: Install Spark via SDKMAN globally
+      shell: |
+        export SDKMAN_DIR="/opt/.sdkman"
+        [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
+        sdk install spark
+      args:
+        creates: "{{ SDKMAN_DIR }}/candidates/spark"
+        executable: /bin/bash
+      register: spark_install_output
+      failed_when: spark_install_output.rc != 0
+
+    - name: Create global symlinks for Hadoop and Spark
+      file:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        state: link
+      with_items:
+        - { src: "{{ HADOOP_HOME }}/bin/hadoop", dest: "/usr/local/bin/hadoop" }
+        - { src: "{{ SPARK_HOME }}/bin/spark-submit", dest: "/usr/local/bin/spark-submit" }
+
+    - name: Create environment variable file
+      file:
+        path: "/etc/profile.d/sdkman_env.sh"
+        state: touch
+        mode: "0644"
+
+    - name: Set environment variables globally
+      lineinfile:
+        path: "/etc/profile.d/sdkman_env.sh"
+        line: "{{ item }}"
+        state: present
+      with_items:
+        - "export JAVA_HOME={{ JAVA_HOME }}"
+        - "export HADOOP_HOME={{ HADOOP_HOME }}"
+        - "export SPARK_HOME={{ SPARK_HOME }}"
+        - "export PATH=$PATH:{{ JAVA_HOME }}/bin:{{ HADOOP_HOME }}/bin:{{ SPARK_HOME }}/bin"
+
+    - name: Collect list of system users
+      shell: |
+        getent passwd | awk -F: '{ if ($3 >= 1000 && $3 < 65534) print $1 }'
+      register: system_users
+      changed_when: false
+
+    - name: Display collected list of users
+      debug:
+        msg: "{{ system_users.stdout_lines }}"
+
+    - name: Source environment variables
+      shell: |
+        source /etc/profile.d/sdkman_env.sh
+      args:
+        executable: /bin/bash
+
+    - name: Create HDFS directories for each user
+      become: true
+      command: "/usr/local/bin/hadoop dfs -mkdir -p /user/{{ item }}"
+      with_items: "{{ system_users.stdout_lines }}"
+      register: mkdir_results
+      failed_when: mkdir_results.rc != 0
+      environment:
+        JAVA_HOME: "{{ SDKMAN_DIR }}/candidates/java/current"
+        HADOOP_HOME: "{{ SDKMAN_DIR }}/candidates/hadoop/current"
+        HADOOP_CONF_DIR: "{{ SDKMAN_DIR }}/candidates/hadoop/current/etc/hadoop"
+      ignore_errors: true
+
+    - name: Change ownership of HDFS directories
+      become: true
+      command: "/usr/local/bin/hadoop dfs -chown {{ item }}:{{ item }} /user/{{ item }}"
+      with_items: "{{ system_users.stdout_lines }}"
+      environment:
+        JAVA_HOME: "{{ SDKMAN_DIR }}/candidates/java/current"
+        HADOOP_HOME: "{{ SDKMAN_DIR }}/candidates/hadoop/current"
+        HADOOP_CONF_DIR: "{{ SDKMAN_DIR }}/candidates/hadoop/current/etc/hadoop"
+      ignore_errors: true
+
+    - name: Change permissions of HDFS directories
+      become: true
+      command: "/usr/local/bin/hadoop dfs -chmod 750 /user/{{ item }}"
+      with_items: "{{ system_users.stdout_lines }}"
+      environment:
+        JAVA_HOME: "{{ SDKMAN_DIR }}/candidates/java/current"
+        HADOOP_HOME: "{{ SDKMAN_DIR }}/candidates/hadoop/current"
+        HADOOP_CONF_DIR: "{{ SDKMAN_DIR }}/candidates/hadoop/current/etc/hadoop"
+      ignore_errors: true
