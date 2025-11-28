@@ -1,0 +1,26 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "⚙️ Buildar imagem com ansible para rodar os playbooks dentro de container",
+            "command": "docker build --network=host -t ansible-tp2-ufmg environment-setup/ansible/TP2/image/.",
+            "type": "shell",
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "⚙️ Testando conexão com o servidor",
+            "command": "docker run -ti --rm --net=host -v $(pwd):/mnt -w=/mnt ansible-tp2-ufmg ansible all -i environment-setup/ansible/hosts.ini -m ping",
+            "type": "shell",
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "⚙️ Execução do playbook do TP2",
+            "command": "docker run -ti --rm --net=host -v $(pwd):/mnt -w=/mnt ansible-tp2-ufmg ansible-playbook environment-setup/ansible/TP2/playbook-tp2.yml -i environment-setup/ansible/hosts.ini",
+            "type": "shell",
+            "problemMatcher": [],
+            "group": "build"
+        }
+    ]
+}
