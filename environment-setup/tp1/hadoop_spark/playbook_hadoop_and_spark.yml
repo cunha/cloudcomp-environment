@@ -1,146 +1,375 @@
 ---
-- name: Install Hadoop and Spark with SDKMAN
+# This playbook installs a single-node Hadoop and Spark cluster.
+# It handles Java installation, user creation, software download,
+# configuration, and service management using systemd.
+
+- name: Install Hadoop + Spark single node with services
   hosts: localhost
   become: true
-  gather_facts: true
   vars:
-    SDKMAN_DIR: "/opt/.sdkman"
-    JAVA_HOME: "{{ SDKMAN_DIR }}/candidates/java/current"
-    HADOOP_HOME: "{{ SDKMAN_DIR }}/candidates/hadoop/current"
-    SPARK_HOME: "{{ SDKMAN_DIR }}/candidates/spark/current"
+    clean_install: false
+
+    hadoop_version: "3.3.6"
+    spark_version: "3.5.1"
+    java_package_name: "temurin-11-jdk"
+    java_home: "/usr/lib/jvm/{{ java_package_name }}-amd64"
+    hadoop_user: "hadoop"
+    hadoop_group: "hadoop"
+    hadoop_home: "/opt/hadoop"
+    spark_home: "/opt/spark"
+
+    hadoop_data_dir: "/var/lib/hadoop"
+    hdfs_namenode_dir: "{{ hadoop_data_dir }}/dfs/namenode"
+    hdfs_datanode_dir: "{{ hadoop_data_dir }}/dfs/datanode"
+
   tasks:
-    - name: Install curl if not installed
+    - name: Update apt cache and install prerequisite packages
       apt:
-        name: curl
+        name:
+          - gpg
+          - apt-transport-https
+          - ca-certificates
         state: present
+        update_cache: true
 
-    - name: Install SDKMAN globally
+    - name: Add Adoptium GPG key for Java installation
       get_url:
-        url: "https://get.sdkman.io"
-        dest: "/opt/install_sdkman.sh"
-        mode: "0755"
+        url: "https://packages.adoptium.net/artifactory/api/gpg/key/public"
+        dest: "/etc/apt/keyrings/adoptium.asc"
+        mode: '0644'
+        force: true
 
-    - name: Run SDKMAN installation script globally
-      shell: |
-        export SDKMAN_DIR="/opt/.sdkman"
-        bash /opt/install_sdkman.sh
-      args:
-        creates: "{{ SDKMAN_DIR }}/bin/sdkman-init.sh"
-
-    - name: Change permissions of .sdkamn directories
-      become: true
-      command: "chmod -R 775 {{ SDKMAN_DIR }}"
-
-    - name: Load SDKMAN into environment globally
-      shell: |
-        export SDKMAN_DIR="/opt/.sdkman"
-        [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
-      args:
-        executable: /bin/bash
-
-    - name: Install Java via SDKMAN globally
-      shell: |
-        export SDKMAN_DIR="/opt/.sdkman"
-        [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
-        sdk install java
-      args:
-        creates: "{{ SDKMAN_DIR }}/candidates/java"
-        executable: /bin/bash
-      register: java_install_output
-      failed_when: java_install_output.rc != 0
-
-    - name: Install Hadoop via SDKMAN globally
-      shell: |
-        export SDKMAN_DIR="/opt/.sdkman"
-        [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
-        sdk install hadoop
-      args:
-        creates: "{{ SDKMAN_DIR }}/candidates/hadoop"
-        executable: /bin/bash
-      register: hadoop_install_output
-      failed_when: hadoop_install_output.rc != 0
-
-    - name: Install Spark via SDKMAN globally
-      shell: |
-        export SDKMAN_DIR="/opt/.sdkman"
-        [[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ]] && source "$SDKMAN_DIR/bin/sdkman-init.sh"
-        sdk install spark
-      args:
-        creates: "{{ SDKMAN_DIR }}/candidates/spark"
-        executable: /bin/bash
-      register: spark_install_output
-      failed_when: spark_install_output.rc != 0
-
-    - name: Create global symlinks for Hadoop and Spark
-      file:
-        src: "{{ item.src }}"
-        dest: "{{ item.dest }}"
-        state: link
-      with_items:
-        - { src: "{{ HADOOP_HOME }}/bin/hadoop", dest: "/usr/local/bin/hadoop" }
-        - { src: "{{ SPARK_HOME }}/bin/spark-submit", dest: "/usr/local/bin/spark-submit" }
-
-    - name: Create environment variable file
-      file:
-        path: "/etc/profile.d/sdkman_env.sh"
-        state: touch
-        mode: "0644"
-
-    - name: Set environment variables globally
-      lineinfile:
-        path: "/etc/profile.d/sdkman_env.sh"
-        line: "{{ item }}"
+    - name: Add Adoptium repository for Eclipse Temurin JDK
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb bookworm main"
         state: present
-      with_items:
-        - "export JAVA_HOME={{ JAVA_HOME }}"
-        - "export HADOOP_HOME={{ HADOOP_HOME }}"
-        - "export SPARK_HOME={{ SPARK_HOME }}"
-        - "export PATH=$PATH:{{ JAVA_HOME }}/bin:{{ HADOOP_HOME }}/bin:{{ SPARK_HOME }}/bin"
+        filename: adoptium
 
-    - name: Collect list of system users
-      shell: |
-        getent passwd | awk -F: '{ if ($3 >= 1000 && $3 < 65534) print $1 }'
-      register: system_users
+    - name: Install Eclipse Temurin JDK 11
+      apt:
+        name: "{{ java_package_name }}"
+        state: present
+
+    - name: Create the hadoop group
+      group:
+        name: "{{ hadoop_group }}"
+        state: present
+
+    - name: Create the hadoop user
+      user:
+        name: "{{ hadoop_user }}"
+        group: "{{ hadoop_group }}"
+        shell: /bin/bash
+        create_home: yes
+    
+    - name: Add superuser accounts to hadoop group
+      user:
+        name: "{{ item }}"
+        groups: "{{ hadoop_group }}"
+        append: yes
+      loop:
+        - "{{ lookup('env','USER') }}"
+        - "cunha"
+
+    - name: Download and unarchive Hadoop
+      unarchive:
+        src: "https://dlcdn.apache.org/hadoop/common/hadoop-{{ hadoop_version }}/hadoop-{{ hadoop_version }}.tar.gz"
+        dest: /opt/
+        remote_src: yes
+        owner: "{{ hadoop_user }}"
+        group: "{{ hadoop_group }}"
+        creates: "/opt/hadoop-{{ hadoop_version }}"
+
+    - name: Create a symlink for the Hadoop installation
+      file:
+        src: "/opt/hadoop-{{ hadoop_version }}"
+        dest: "{{ hadoop_home }}"
+        state: link
+        owner: "{{ hadoop_user }}"
+        group: "{{ hadoop_group }}"
+
+    - name: Download and unarchive Spark
+      unarchive:
+        src: "https://archive.apache.org/dist/spark/spark-{{ spark_version }}/spark-{{ spark_version }}-bin-hadoop3.tgz"
+        dest: /opt/
+        remote_src: yes
+        owner: "{{ hadoop_user }}"
+        group: "{{ hadoop_group }}"
+        creates: "/opt/spark-{{ spark_version }}-bin-hadoop3"
+
+    - name: Create a symlink for the Spark installation
+      file:
+        src: "/opt/spark-{{ spark_version }}-bin-hadoop3"
+        dest: "{{ spark_home }}"
+        state: link
+        owner: "{{ hadoop_user }}"
+        group: "{{ hadoop_group }}"
+
+    - name: Set up Hadoop environment variables
+      copy:
+        dest: /etc/profile.d/hadoop.sh
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          export JAVA_HOME={{ java_home }}
+          export HADOOP_HOME={{ hadoop_home }}
+          export HADOOP_CONF_DIR={{ hadoop_home }}/etc/hadoop
+          export PATH=$PATH:$HADOOP_HOME/bin:$HADOOP_HOME/sbin
+
+    - name: Set up Spark environment variables
+      copy:
+        dest: /etc/profile.d/spark.sh
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          export SPARK_HOME={{ spark_home }}
+          export PATH=$PATH:$SPARK_HOME/bin
+
+    - name: Link Hadoop conf to Spark
+      file:
+        src: "{{ hadoop_home }}/etc/hadoop"
+        dest: "{{ spark_home }}/conf/hadoop-conf"
+        state: link
+
+    - name: Configure core-site.xml
+      copy:
+        dest: "{{ hadoop_home }}/etc/hadoop/core-site.xml"
+        content: |
+          <?xml version="1.0"?>
+          <configuration>
+            <property>
+              <name>fs.defaultFS</name>
+              <value>hdfs://localhost:9000</value>
+            </property>
+          </configuration>
+        owner: "{{ hadoop_user }}"
+        group: "{{ hadoop_group }}"
+        mode: '0644'
+
+    - name: Configure hdfs-site.xml
+      copy:
+        dest: "{{ hadoop_home }}/etc/hadoop/hdfs-site.xml"
+        content: |
+          <?xml version="1.0"?>
+          <configuration>
+            <property>
+              <name>dfs.replication</name>
+              <value>1</value>
+            </property>
+            <property>
+              <name>dfs.namenode.name.dir</name>
+              <value>file:{{ hdfs_namenode_dir }}</value>
+            </property>
+            <property>
+              <name>dfs.datanode.data.dir</name>
+              <value>file:{{ hdfs_datanode_dir }}</value>
+            </property>
+            <property>
+              <name>dfs.permissions.superusergroup</name>
+              <value>{{ hadoop_group }}</value>
+            </property>
+          </configuration>
+        owner: "{{ hadoop_user }}"
+        group: "{{ hadoop_group }}"
+        mode: '0644'
+
+    - name: Configure yarn-site.xml
+      copy:
+        dest: "{{ hadoop_home }}/etc/hadoop/yarn-site.xml"
+        content: |
+          <?xml version="1.0"?>
+          <configuration>
+            <property>
+              <name>yarn.nodemanager.aux-services</name>
+              <value>mapreduce_shuffle</value>
+            </property>
+          </configuration>
+        owner: "{{ hadoop_user }}"
+        group: "{{ hadoop_group }}"
+        mode: '0644'
+
+    - name: Configure mapred-site.xml
+      copy:
+        dest: "{{ hadoop_home }}/etc/hadoop/mapred-site.xml"
+        content: |
+          <?xml version="1.0"?>
+          <configuration>
+            <property>
+              <name>mapreduce.framework.name</name>
+              <value>yarn</value>
+            </property>
+            <property>
+              <name>yarn.app.mapreduce.am.env</name>
+              <value>HADOOP_MAPRED_HOME={{ hadoop_home }}</value>
+            </property>
+          </configuration>
+        owner: "{{ hadoop_user }}"
+        group: "{{ hadoop_group }}"
+        mode: '0644'
+
+    - name: Stop all Hadoop services before formatting
+      systemd:
+        name: "{{ item }}"
+        state: stopped
+      ignore_errors: yes
+      loop:
+        - hadoop-namenode
+        - hadoop-datanode
+        - hadoop-resourcemanager
+        - hadoop-nodemanager
+    
+    - name: Remove stale PID files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /tmp/hadoop-hadoop-namenode.pid
+        - /tmp/hadoop-hadoop-datanode.pid
+        - /tmp/hadoop-hadoop-resourcemanager.pid
+        - /tmp/hadoop-hadoop-nodemanager.pid
+    
+    - name: Clear existing HDFS data
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ hdfs_namenode_dir }}"
+        - "{{ hdfs_datanode_dir }}"
+      when: clean_install | bool
+      
+    - name: Verify HDFS data directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ hadoop_user }}"
+        group: "{{ hadoop_group }}"
+        mode: '0755'
+      loop:
+        - "{{ hdfs_namenode_dir }}"
+        - "{{ hdfs_datanode_dir }}"
+    
+    - name: Format HDFS NameNode (run only once)
+      command: "sudo -u {{ hadoop_user }} {{ hadoop_home }}/bin/hdfs namenode -format -force"
+      args:
+        creates: "{{ hdfs_namenode_dir }}/current"
+      register: format_result
+      changed_when: "'successfully formatted' in format_result.stdout"
+
+    - name: Create systemd unit files for Hadoop services
+      copy:
+        dest: "/etc/systemd/system/{{ item.name }}.service"
+        mode: '0644'
+        content: |
+          [Unit]
+          Description={{ item.desc }}
+          After=network.target
+
+          [Service]
+          Type=forking
+          User={{ hadoop_user }}
+          Group={{ hadoop_group }}
+          Environment=JAVA_HOME={{ java_home }}
+          Environment=HADOOP_HOME={{ hadoop_home }}
+          Environment=HADOOP_CONF_DIR={{ hadoop_home }}/etc/hadoop
+          ExecStart={{ hadoop_home }}/{{ item.start_path }}
+          ExecStop={{ hadoop_home }}/{{ item.stop_path }}
+          PIDFile={{ item.pid_file }}
+          Restart=on-failure
+          RestartSec=5
+          TimeoutStartSec=120
+
+          [Install]
+          WantedBy=multi-user.target
+      loop:
+        - name: 'hadoop-namenode'
+          desc: 'Hadoop NameNode'
+          start_path: 'bin/hdfs --daemon start namenode'
+          stop_path: 'bin/hdfs --daemon stop namenode'
+          pid_file: '/tmp/hadoop-hadoop-namenode.pid'
+        - name: 'hadoop-datanode'
+          desc: 'Hadoop DataNode'
+          start_path: 'bin/hdfs --daemon start datanode'
+          stop_path: 'bin/hdfs --daemon stop datanode'
+          pid_file: '/tmp/hadoop-hadoop-datanode.pid'
+        - name: 'hadoop-resourcemanager'
+          desc: 'Hadoop ResourceManager'
+          start_path: 'bin/yarn --daemon start resourcemanager'
+          stop_path: 'bin/yarn --daemon stop resourcemanager'
+          pid_file: '/tmp/hadoop-hadoop-resourcemanager.pid'
+        - name: 'hadoop-nodemanager'
+          desc: 'Hadoop NodeManager'
+          start_path: 'bin/yarn --daemon start nodemanager'
+          stop_path: 'bin/yarn --daemon stop nodemanager'
+          pid_file: '/tmp/hadoop-hadoop-nodemanager.pid'
+      notify: Reload systemd
+    
+    - name: Flush handlers
+      meta: flush_handlers
+    
+    - name: Enable and start NameNode first
+      systemd:
+        name: hadoop-namenode
+        enabled: yes
+        state: started
+
+    - name: Wait for NameNode to be ready
+      wait_for:
+        port: 9000
+        host: localhost
+        timeout: 60
+    
+    - name: Start DataNode
+      systemd:
+        name: hadoop-datanode
+        enabled: yes
+        state: started
+
+    - name: Wait for DataNode to connect
+      pause:
+        seconds: 10
+
+    - name: Enable and start YARN services
+      systemd:
+        name: "{{ item }}"
+        enabled: yes
+        state: started
+      loop:
+        - hadoop-resourcemanager
+        - hadoop-nodemanager
+
+    - name: Wait for HDFS to be ready
+      command: "sudo -u {{ hadoop_user }} {{ hadoop_home }}/bin/hdfs dfsadmin -report"
+      register: hdfs_report
+      until: "'Live datanodes (1)' in hdfs_report.stdout"
+      retries: 10
+      delay: 5
       changed_when: false
 
-    - name: Display collected list of users
-      debug:
-        msg: "{{ system_users.stdout_lines }}"
-
-    - name: Source environment variables
+    - name: Get non-system users
       shell: |
-        source /etc/profile.d/sdkman_env.sh
-      args:
-        executable: /bin/bash
+        getent passwd | awk -F: '{ if ($3 >= 1000 && $3 < 65534) print $1 }'
+      register: student_users_result
+      changed_when: false
 
-    - name: Create HDFS directories for each user
-      become: true
-      command: "/usr/local/bin/hadoop dfs -mkdir -p /user/{{ item }}"
-      with_items: "{{ system_users.stdout_lines }}"
-      register: mkdir_results
-      failed_when: mkdir_results.rc != 0
-      environment:
-        JAVA_HOME: "{{ SDKMAN_DIR }}/candidates/java/current"
-        HADOOP_HOME: "{{ SDKMAN_DIR }}/candidates/hadoop/current"
-        HADOOP_CONF_DIR: "{{ SDKMAN_DIR }}/candidates/hadoop/current/etc/hadoop"
-      ignore_errors: true
+    - name: Set student users fact
+      set_fact:
+        student_users: "{{ student_users_result.stdout_lines }}"
 
-    - name: Change ownership of HDFS directories
-      become: true
-      command: "/usr/local/bin/hadoop dfs -chown {{ item }}:{{ item }} /user/{{ item }}"
-      with_items: "{{ system_users.stdout_lines }}"
-      environment:
-        JAVA_HOME: "{{ SDKMAN_DIR }}/candidates/java/current"
-        HADOOP_HOME: "{{ SDKMAN_DIR }}/candidates/hadoop/current"
-        HADOOP_CONF_DIR: "{{ SDKMAN_DIR }}/candidates/hadoop/current/etc/hadoop"
-      ignore_errors: true
+    - name: Create HDFS home directories for all users
+      command: "sudo -u {{ hadoop_user }} {{ hadoop_home }}/bin/hdfs dfs -mkdir -p /user/{{ item }}"
+      loop: "{{ student_users }}"
+      ignore_errors: yes
+      loop_control:
+        label: "{{ item }}"
 
-    - name: Change permissions of HDFS directories
-      become: true
-      command: "/usr/local/bin/hadoop dfs -chmod 750 /user/{{ item }}"
-      with_items: "{{ system_users.stdout_lines }}"
-      environment:
-        JAVA_HOME: "{{ SDKMAN_DIR }}/candidates/java/current"
-        HADOOP_HOME: "{{ SDKMAN_DIR }}/candidates/hadoop/current"
-        HADOOP_CONF_DIR: "{{ SDKMAN_DIR }}/candidates/hadoop/current/etc/hadoop"
-      ignore_errors: true
+    - name: Set ownership of HDFS home directories
+      command: "sudo -u {{ hadoop_user }} {{ hadoop_home }}/bin/hdfs dfs -chown {{ item }}:{{ hadoop_group }} /user/{{ item }}"
+      loop: "{{ student_users }}"
+      ignore_errors: yes
+      loop_control:
+        label: "{{ item }}"
+
+  handlers:
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
