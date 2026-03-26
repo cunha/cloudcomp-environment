@@ -138,7 +138,7 @@ SparkSession available as 'spark'.
 Note that `pyspark` already creates a [SparkContext][spark-doc-sparkcontext] and a [SparkSession][spark-doc-sparksession], which we can use interactively. For example, let's read a file, get its lines, and then compute the length of each line by typing the following commands in the interactive shell:
 
 ```python
-rdd = sc.textFile("hdfs:/user/cunha/hello.txt")
+rdd = sc.textFile("hdfs://localhost:9000/user/cunha/hello.txt")
 lines = rdd.count()
 rdd.collect()
 rdd2 = rdd.map(len)
@@ -152,7 +152,7 @@ RDDs are created by distributing a list of items across HDFS blocks. RDDs can be
 ```python
 outrdd = sc.parallelize([lines])
 # The following will fail if the output directory exists:
-outrdd.saveAsTextFile("hdfs:/user/cunha/hello-linecount")
+outrdd.saveAsTextFile("hdfs://localhost:9000/user/cunha/hello-linecount")
 ```
 
 You can later check the contents of the `hdfs:/user/cunha/hello-linecount` *directory*. The RDD is split into multiple *parts*, which can later be read in parallel. One of the parts will contain the number of lines in `hello.txt`:
@@ -179,11 +179,11 @@ spark = SparkSession.builder \
     .appName("HelloLines") \
     .getOrCreate()
 sc = spark.sparkContext
-rdd = sc.textFile("hdfs:/user/cunha/hello.txt")
+rdd = sc.textFile("hdfs://localhost:9000/user/cunha/hello.txt")
 lines = rdd.count()
 outrdd = sc.parallelize([lines])
 # The following will fail if the output directory exists:
-outrdd.saveAsTextFile("hdfs:/user/cunha/hello-linecount-submit")
+outrdd.saveAsTextFile("hdfs://localhost:9000/user/cunha/hello-linecount-submit")
 sc.stop()
 ```
 
@@ -238,20 +238,27 @@ sc = spark.sparkContext
 
 ### Running Jupyter within VSCode
 
-You can also run the Jupyter kernel within VSCode.  You will need Python and Jupyter extensions, and you need to install dependencies manually (e.g., `pyspark`) using `pip install`.  Note that you will need to go on the extensions tab in VSCode and install the Python and Jupyter extensions on the virtual machine even if you already have them installed on your local machine.  Finally, before creating a `SparkSession` instance, you will need to configure the environment used by the Jupyter kernel. (These variables are already set up in your shell by the initialization scripts in `/etc/profile.d`, but are not set up in VSCode.) Adding this on the first cells in the notebook should be enough:
+You can also run the Jupyter kernel within VSCode.  You will need Python and Jupyter extensions, and you need to install dependencies manually (e.g., `pyspark`) using `pip install`:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+Note that you will need to go on the extensions tab in VSCode and install the Python and Jupyter extensions on the virtual machine even if you already have them installed on your local machine.  Finally, before creating a `SparkSession` instance, you will need to configure the environment used by the Jupyter kernel. (These variables are already set up in your shell by the initialization scripts in `/etc/profile.d`, but are not set up in VSCode.) Adding this on the first cells in the notebook should be enough:
 
 ```python
-os.environ["JAVA_HOME"] = "/usr/lib/jvm/java-8-openjdk-amd64"
-os.environ["HADOOP_INSTALL"] = "/home/hadoop/hadoop"
-os.environ["HADOOP_HOME"] = os.environ["HADOOP_INSTALL"]
-os.environ["HADOOP_MAPRED_HOME"] = os.environ["HADOOP_INSTALL"]
-os.environ["HADOOP_COMMON_HOME"] = os.environ["HADOOP_INSTALL"]
-os.environ["HADOOP_HDFS_HOME"] = os.environ["HADOOP_INSTALL"]
-os.environ["HADOOP_YARN_HOME"] = os.environ["HADOOP_INSTALL"]
-os.environ["HADOOP_CONF_DIR"] = os.path.join(os.environ["HADOOP_INSTALL"], "/etc/hadoop")
-os.environ["SPARK_HOME"] = "/home/hadoop/spark"
+import os
+import sys
+import glob
+
+# get the variables below from your shell, e.g., running `echo $JAVA_HOME`
+os.environ["JAVA_HOME"] = "/usr/lib/jvm/temurin-11-jdk-amd64"
+os.environ["HADOOP_HOME"] = "/opt/hadoop"
+os.environ["SPARK_HOME"] = "/opt/spark"
 sys.path.insert(0, os.path.join(os.environ["SPARK_HOME"], "python"))
-sys.path.append(os.path.join(os.environ["SPARK_HOME"], "python/lib/py4j-0.10.9.2-src.zip"))
+for fp in glob.iglob(os.environ["SPARK_HOME"] + "/python/lib/*.zip"):
+  sys.path.append(fp)
 ```
 
 ## Spark Run Monitoring
