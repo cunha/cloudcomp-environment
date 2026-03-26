@@ -17,7 +17,7 @@ if [[ ! -s submission.zip ]] ; then
     echo "Generated students.yml file with test student account"
     exit 0
 fi
-7z x -ozipdir submission.zip
+unzip submission.zip -d zipdir
 
 for student in zipdir/* ; do
     student=$(basename "$student")

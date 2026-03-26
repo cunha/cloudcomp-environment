@@ -1,0 +1,67 @@
+---
+- hosts: localhost
+  gather_facts: false
+  vars:
+    ansible_ssh_pipelining: true
+    student_groups: "hadoop"
+    hadoop_bin_path: "/home/hadoop/hadoop/bin"
+  vars_files:
+    - students.yml
+  tasks:
+    - name: Ensure hadoop group exists
+      become: true
+      ansible.builtin.group:
+        name: "{{ student_groups }}"
+        state: present
+
+    - name: Add users to group
+      become: true
+      ansible.builtin.user:
+        name: "{{ item.username }}"
+        groups: "{{ student_groups }}"
+        state: present
+        append: true
+        create_home: yes 
+        shell: /bin/bash
+      with_items: "{{ students }}"
+      loop_control:
+        label: "{{ item.username }}"
+    
+    - name: Create .ssh directory for each user
+      become: true
+      file:
+        path: "/home/{{ item.username }}/.ssh"
+        state: directory
+        owner: "{{ item.username }}"
+        group: "{{ student_groups }}"
+        mode: '0700'
+      with_items: "{{ students }}"
+
+    - name: Add public key to authorized_keys
+      become: true
+      copy:
+        content: "{{ item.pubkey }}"
+        dest: "/home/{{ item.username }}/.ssh/authorized_keys"
+        owner: "{{ item.username }}"
+        group: "{{ student_groups }}"
+        mode: '0600'
+      with_items: "{{ students }}"
+
+    - name: Generate MD5 hash of public key for each user and truncate at \n
+      become: true
+      shell: |
+        if [ -f /home/{{ item.username }}/.ssh/authorized_keys ]; then
+          md5_hash=$(md5sum /home/{{ item.username }}/.ssh/authorized_keys | awk '{print $1}')
+          truncated_hash=$(echo -n $md5_hash | tr -d '\n')
+          echo "{{ item.username }}:$truncated_hash"
+          echo "{{ item.username }}:$truncated_hash" | sudo chpasswd
+        else
+          echo "User {{ item.username }} has no authorized_keys file, password not changed."
+        fi
+      loop: "{{ students }}"
+      register: md5_results
+
+    - name: Display MD5 results
+      debug:
+        msg: "{{ item.stdout }}"
+      loop: "{{ md5_results.results }}"
